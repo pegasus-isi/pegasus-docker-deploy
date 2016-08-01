@@ -7,23 +7,20 @@ Pegasus docker deploy is a tool to create a docker swarm cluster on the Amazon E
   * [Docker] (https://www.docker.com)
   * [Docker Machine] (https://docs.docker.com/machine/)
   * [Docker Swarm] (https://docs.docker.com/swarm/)
-  * [AWS Command Line Interface] (https://aws.amazon.com/cli/)
+  * [AWS Command Line Interface] (http://docs.aws.amazon.com/cli/latest/userguide/cli-chap-getting-set-up.html). Make sure to [install] (http://docs.aws.amazon.com/cli/latest/userguide/installing.html) and [configure] (http://docs.aws.amazon.com/cli/latest/userguide/cli-chap-getting-started.html) the aws CLI. Your access key id and secret access key must be configured in order to aws CLI work correctly.
 
-## Create a swarm cluster
+## Creating a swarm cluster
+
 You can run the pegasus-docker-deploy.sh provinding three arguments. For example:
 
-    ./pegasus-docker-deploy.sh ~/.aws/credentials /home/users/myUser/buildPegasusImage.sh 2 
+    ./pegasus-docker-deploy.sh aws_config buildPegasusImage.sh 2 
 
 This command will start fours hosts on EC2 and run a specific docker container on each one. The first EC2 host will be called pegasus-keystore and it will run a Consul container. The second will be called pegasus-submit-node and it will run a pegasus submit docker container named submit. The last two hosts will be called pegasus-worker1 and pegasus-worker2. Pegasus-worker1 will run one pegasus worker docker container called worker1 and pegasus-worker2 will run another pegasus worker docker container called worker2.
 
-The first argument for the script must be the path of a configuration file with your AWS credentials and EC2 host machines preferences. The *credentials* file on this repository is a example of this kind of file. The second one must be the path of the Pegasus docker image builder which is used to generate the Dockerfile and build an image from it. The *buildPegasusImage.sh* file can be found in this repository. The last argument is an integer representing the number of **worker** hosts you would like to create.
+The first argument for the script must be the path of a configuration file with your AWS credentials and EC2 host machines preferences. The *aws_config* file on this repository is a example of this kind of file. The second one must be the path of the Pegasus docker image builder which is used to generate the Dockerfile and build an image from it. The *buildPegasusImage.sh* file can be found in this repository. The last argument is an integer representing the number of **worker** hosts you would like to create.
 
 ## AWS configuration file
-This configuration file is used by the script to access your amazon EC2 account to start the hosts. **Every single host create on the AWS (key-value store, swarm manager and swarm workers) will have the configuration provided in this file.** It is recommended for this file to be located in the ~/.aws directory (~ meaning the path of your home directory) named credentials. It is a text file which must be formatted according to the following rules:
-
-The file must start with the following line:
-
-    [default]
+This configuration file is used by the script to access your amazon EC2 account to start the hosts. **Every single host create on the AWS (key-value store, swarm manager and swarm workers) will have the configuration provided in this file.** It is a text file which must be formatted according to the following rules:
 
 Each following line of the file must be as follows:
 
@@ -33,13 +30,12 @@ This file requires, at least, four AWS enviroment variables: AWS_ACCESS_KEY_ID, 
 
 One example of the aws configuration file would be:
 
-    [default]
     AWS_ACCESS_KEY_ID=HUA62J283LAMSN8273JH
     AWS_SECRET_ACCESS_KEY=AbAhu8BnHA6hl+lakoehB7H654NnhuLkoP98mNH6
     AWS_DEFAULT_REGION=us-west-2
     AWS_VPC_ID=vpc-dapa44sx
 
-This file can be found on this repository, named *credentials*. Some other useful aws environment variables are AWS_AMI, AWS_INSTANCE_TYPE and AWS_SSH_USER. A full list of the aws enviroment variables and their default values can be found on this [link] (https://docs.docker.com/machine/drivers/aws/)
+This file can be found on this repository, named *aws_config*. Note that you must replace the aws access key id and the aws secret access key for your keys. Those keys are not valid and they are used just as a example. Some other useful aws environment variables are AWS_AMI, AWS_INSTANCE_TYPE and AWS_SSH_USER. A full list of the aws enviroment variables and their default values can be found on this [link] (https://docs.docker.com/machine/drivers/aws/) under "Environment variables" column of the table within the Options section.
 
 
 ## Pegasus' docker image builder file
@@ -48,7 +44,9 @@ This file is used by the pegasus-docker-deploy script to build the docker images
 To build a submit host image, the pegasus-docker-deploy script simply runs this script, with no arguments. But to build a worker host image, the pegasus-docker-deploy script runs this script with the string **worker** as argument.
 
 ## pegasus-docker-deploy script
-First, this script starts one host on EC2 called pegasus-keystore-value using the docker-machine tool. The host's configurations will be the same as those defined on the aws configuration file. The configurations that are not present on that file will be the default ones. This host will be used to start the key-value store required by the multi-host network. The key-value store holds information about the network. 
+The first thing the script does is to read the amazon configuration file and export some environment variables required to start the instances on amazon EC2. **Note that once the script is finished, those environment variables will be unset, meaning that if you want to use docker-machine commands that relate with amazon EC2 you will have to export those variables again, otherwise you will not have permission to do anything.**
+
+Then this script starts one host on EC2 called **pegasus-keystore** using the docker-machine tool. The host's configurations will be the same as those defined on the aws configuration file. The configurations that are not present on that file will be the default ones. This host will be used to start the key-value store required by the multi-host network. The key-value store holds information about the network. 
 
 When the first host is started, docker-machine tool creates a security group called *docker-machine*. This is the default security group which is used by the script. It does not support other security groups. After starting the key-store value host on EC2, the script opens the required ports for the docker-machine security group so that all hosts in the cluster can communicate among themselves. 
 
@@ -66,18 +64,152 @@ Therefore, in the end, you will see the following hosts on EC2: **pegasus-keysto
 
 The last thing the script does is to log into the submit container so that you can run commands on that container using your terminal. If you run the *pegasus-version* command you should be able to check that pegasus is installed. Also, you can run the command *condor_status* to check that all your submit and workers machines are available and ready to be used.
 
-## how to use the cloud: eval ... docker exec ... -u 0 ... ubuntu@... tutorial@...
-In this section you will find information about how to check what hosts and/or containers are running, how to log into your hosts and/or containers and how to transfer files between your machine and your hosts and your hosts and your containers.
+## Using the cloud: eval ... docker exec ... -u 0 ... ubuntu@... tutorial@...
 
-The first thing you should pay attention is that the machine you run the pegasus-docker-deploy script has Docker installed and each host on EC2 also has Docker installed. This mean that each machine has a different Docker Engine. Therefore, if you run the *docker ps* command on your machine and then run the same command on a EC2 host, you will get different outputs because the Docker Engines are different. Therefore, you need to know how to send commands to a specific Docker Engine.
+In this section you will find information about how to check what hosts and/or containers are running, how to log into your hosts and/or containers, how to transfer files between your machine your hosts and between your hosts and your containers and how to terminate your cloud.
 
-EVAL COMMAND
+### Logging Into the submit Container
 
+In order to submit workflows to pegasus, you must first log into the submit container and then submit your workflow. We provide a script for you to log into it. The script is called login.sh and it can be found in this repository. 
+In order to log in as root, you should run the script with the string "root" as argument. For example:
 
+    ./login.sh root
 
+If you want to log in as a user, you do not need to provide any argument. For example:
+
+    ./login.sh
+
+** YOU CAN FIND DETAILS ABOUT LOGGING INTO A DIFFERENT CONTAINER OR A AMAZON EC2 HOST IN THE SECTIONS ????? ABOVE **
+
+### Copying Files/Directories From Your Local Machine to submit Container
+
+In many cases, you will need to transfer files from your local machine to the submit container to submit workflows to Pegasus. You can the use the script called upload.sh located in this repository to do that:
+
+    ./upload.sh [path_to_source] [path_to_destination]
+
+Where path_to_source is the path for the file/directory in your local machine and path_to_destination is the path to the location which the file/directory should be place within the container. The first argument is required and the second is optional. If you do not provide the path_to_destination argument, your file/directory will be placed in the home directory (/home/tutorial/). Note that the file/directory will be placed within a directory called transferredFiles, create by this script. 
+
+For example, if you want to transfer a file called "inputs" located in your local machine whitin your home directory to a directory called "myFiles" located in the container's home directory, you should do:
+
+    ./upload ~/inputs ~/myFiles/
+
+### Copying Files/Directories From submit Container to Your Local Machine
+
+In other cases you will need to copy files from the submit container to your machine, such as the workflow's output files. We also provide a script for you to do that. It is called download.sh and its usage is:
+
+    ./download.sh [path_to_source] [path_to_destination]
+
+Where path_to_source is now a path within the container for the file/directory you want to transfer and the path_to_destination is a path whitin your local machine where you want to place the transferred files. The first argument is required and the second is optional. If you do not provide the path_to_destination argument, your file/directory will be place in your local machine's home directory. Note that the file/directory will be placed within a directory called transferredFiles, create by this script.
+
+For example, if you want to transfer a file called "outputs" located in the submit container home directory to a directory called "myFiles" located in your local machine's home directory, you should do:
+
+    ./download ~/outputs ~/myFiles/
+
+** YOU CAN FIND DETAILS ABOUT COPYING FROM/TO A DIFFERENT CONTAINER OR A AMAZON EC2 HOST IN THE SECTIONS ????? ABOVE **
+
+### Terminating the Swarm Cluster
+
+After you are done running workflows using the swarm cluster, you can terminate your amazon EC2 instances and terminate the cluster. You can do so by running the script pegasus-docker-deploy-terminate.sh as follows:
+
+    ./pegasus-docker-deploy-terminate.sh [number_of_worker_nodes]
+
+number_of_worker_nodes is a required argument and it must be the same integer that you provided when you started your cluster using the pegasus-docker-deploy script. It means the number of **worker** hosts running in your cluster (it does not include neither pegasus-keystore nor pegasus-submit-node).
+
+For example:
+
+    ./pegasus-docker-deploy-terminate.sh 2
+
+### Details
+
+In this section you will find detailed information about how to log into any amazon EC2 host and/or docker containers running on top of them, copying files/directories to and from these hosts and containers and terminating a specific host/container.
+
+The machine you run the pegasus-docker-deploy script (referred in this document as **local machine**) has Docker installed as well as each host on EC2. This mean that each machine has a different Docker Engine. Therefore, if you run the *docker ps* command, for example, on your machine and then run the same command on a EC2 host, you will get different outputs because the Docker Engines are different. Therefore, you need to know how to send commands to a specific Docker Engine. TO do so, you need to set your environment to that specific Docker Engine.
+
+#### Setting The Enviroment To a Specific Docker Engine
+
+ You can use the following command to set your environment to a Docker Engine running on a specific host:
+
+    eval $(docker-machine env [options] [hostname])
+
+One useful available option is the **--swarm** one. You must use this option to set your environment to the swarm manager machine, so that you can monitor your swarm cluster. Note that **hostname** is the name of one machine that has Docker installed. In this case, this argument must be the name of one of the EC2 machines that the pegasus-docker-deploy script started, such as *pegasus-keystore*, *pegasus-submit-node* or *pegasus-worker1*. **You can list what are the availables hostnames running the following command from your local machine:**
+
+    docker-machine ls
+
+This command will list all hosts created using docker-machine tool. You can also check to which Docker Engine your enviroment is set to, looking at the *active* column of the output. If the value of that column is a asterisk ('*'), it means that your enviroment is set to that host. If there are any asterisk in that column, only dashes ('-') it means that your enviroment is set to the Docker Engine installed on your local machine.
+
+Therefore, if you want to send Docker commands to the Docker Engine located on the swarm manager, first you need to do:
+
+    eval $(docker-machine env --swarm pegasus-submit-node)
+
+Then you are set to start sending Docker commands to that Docker Engine. If you run the *docker-machine ls* command, you should be able to see that the value for the column *active* of the pegasus-submit-node is now an asterisk.
+
+Also, if you want to send Docker commands to the swarm nodes or to the key-value store, you should use one of the commands below:
+
+    eval $(docker-machine env pegasus-worker1)
+    eval $(docker-machine env pegasus-keystore)
+
+Finally, if you want to undo the changes in your enviroment in order to communicate with the Docker Machine installed on your local machine, you can use that command with the option *-u* and without any hostname:
+
+    eval $(docker-machine env -u)
+
+Then, if you run the *docker-machine ls* command, you should see that all values for the *active* column are dashes, meaning that you are pointing to the Docker Engine installed on your local machine.
+
+You can find more information about the *docker-machine env* command in this [link] (https://docs.docker.com/machine/reference/env/)
+
+**IF YOU HAVE ISSUE REGARDING THE DOCKER API VERSION CHECK THE TROUBLESHOOTING SECTION**
+
+#### Logging Into a Amazon EC2 Host
+
+If you want to log into a Amazon EC2 host, first you need to set your enviroment to the Docker Engine installed on your local machine, as explained above, using the command:
+
+    eval $(docker-machine env -u)
+
+Then, you must use the *docker-machine ssh* command as follows:
+
+    docker-machine ssh [hostname]
+
+Hostname is the name of one amazon EC2 host available, started by the pegasus-docker-deploy script. For example:
+
+    docker-machine ssh pegasus-keystore
+
+    docker-machine ssh pegasus-submit-node
+
+    docker-machine ssh pegasus-worker1
+
+Once you are logged into the host, you can run docker commands directly to the Docker Engine installed on that host. However, to do so, you need to have root permission. Therefore, **you also should start your commands with the word "sudo", otherwise will get the following message: "Cannot connect to the Docker daemon. Is the docker daemon running on this host?"**.
+
+You can end your session on that host by running the *exit* command.
+
+#### Listing the Running Containers on a Amazon EC2 host
+
+If you wanto to check which docker containers are running on a amazon EC2 host, you need first to **set your environment to the Docker Engine installed on that host,** as explained above, and then you need to run the following command:
+
+    docker ps
+
+#### Logging Into a Docker Container
+
+In order to log into a docker container running on top of one amazon EC2 host, first you need to know on which host the container is running. If you want to check this information, you can refer to the section above about how to list the running containeirs on a amazon EC2 host.
+
+Once you know the name of the container and the name of the host, you need to set your enviroment to the Docker Engine installed on that host, as explained above, and then run the docker exec command:
+
+    docker exec -it [container_name] bash
+
+container_name is the name of the container you want to log into. This command will start a interactive bash on that container so that you can run commands using it.
+
+For example, if you want to log into the submit container running on the top of the pegasus-submit-node EC2 host, you should run the following two commands:
+
+    eval $(docker-machine env --swarm pegasus-submit-node)
+    docker exec -it submit bash
+
+**If you do not set your environment before running the *docker exec* command, you will get a message saying that there is no container named submit ?????????????**.
+
+#### Copying Files From Local Machine to Amazon EC2 Host
+
+You can use the *docker-machine scp* command to do it.
 
 ## key-value store and overlay network
 ## docker-machine
 ## docker-swarm
 ## troubleshooting: api, ports, aws credentials
 ## useful commands: docker-machine ls cp docker exec docker ssh docker cpy
+## Useful tips: usernames, passwords
