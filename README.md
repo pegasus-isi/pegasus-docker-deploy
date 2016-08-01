@@ -79,15 +79,15 @@ If you want to log in as a user, you do not need to provide any argument. For ex
 
     ./login.sh
 
-** YOU CAN FIND DETAILS ABOUT LOGGING INTO A DIFFERENT CONTAINER OR A AMAZON EC2 HOST IN THE SECTIONS ????? ABOVE **
+You can find details about logging into a different container or into a amazon EC2 host in the "Details" section below.
 
 ### Copying Files/Directories From Your Local Machine to submit Container
 
 In many cases, you will need to transfer files from your local machine to the submit container to submit workflows to Pegasus. You can the use the script called upload.sh located in this repository to do that:
 
-    ./upload.sh [path_to_source] [path_to_destination]
+    ./upload.sh [source] [destination]
 
-Where path_to_source is the path for the file/directory in your local machine and path_to_destination is the path to the location which the file/directory should be place within the container. The first argument is required and the second is optional. If you do not provide the path_to_destination argument, your file/directory will be placed in the home directory (/home/tutorial/). Note that the file/directory will be placed within a directory called transferredFiles, create by this script. 
+Where source is the path for the file/directory in your local machine and destination is the path to the location which the file/directory should be place within the container. The first argument is required and the second is optional. If you do not provide the destination argument, your file/directory will be placed in the home directory (/home/tutorial/). Note that the file/directory will be placed within a directory called transferredFiles, create by this script. 
 
 For example, if you want to transfer a file called "inputs" located in your local machine whitin your home directory to a directory called "myFiles" located in the container's home directory, you should do:
 
@@ -97,15 +97,15 @@ For example, if you want to transfer a file called "inputs" located in your loca
 
 In other cases you will need to copy files from the submit container to your machine, such as the workflow's output files. We also provide a script for you to do that. It is called download.sh and its usage is:
 
-    ./download.sh [path_to_source] [path_to_destination]
+    ./download.sh [source] [destination]
 
-Where path_to_source is now a path within the container for the file/directory you want to transfer and the path_to_destination is a path whitin your local machine where you want to place the transferred files. The first argument is required and the second is optional. If you do not provide the path_to_destination argument, your file/directory will be place in your local machine's home directory. Note that the file/directory will be placed within a directory called transferredFiles, create by this script.
+Where source is now a path within the container for the file/directory you want to transfer and the destination is a path whitin your local machine where you want to place the transferred files. The first argument is required and the second is optional. If you do not provide the destination argument, your file/directory will be place in your local machine's home directory. Note that the file/directory will be placed within a directory called transferredFiles, create by this script.
 
 For example, if you want to transfer a file called "outputs" located in the submit container home directory to a directory called "myFiles" located in your local machine's home directory, you should do:
 
     ./download ~/outputs ~/myFiles/
 
-** YOU CAN FIND DETAILS ABOUT COPYING FROM/TO A DIFFERENT CONTAINER OR A AMAZON EC2 HOST IN THE SECTIONS ????? ABOVE **
+You can find details about copying from/to a different container or from/to a amazon EC2 host in the section "Details" below.
 
 ### Terminating the Swarm Cluster
 
@@ -119,9 +119,11 @@ For example:
 
     ./pegasus-docker-deploy-terminate.sh 2
 
+You can find details about how to terminate a specific amazon EC2 host and all containers running on it in the "Details" section below.
+
 ### Details
 
-In this section you will find detailed information about how to log into any amazon EC2 host and/or docker containers running on top of them, copying files/directories to and from these hosts and containers and terminating a specific host/container.
+In this section you will find detailed information about how to log into any amazon EC2 host and/or docker containers running on top of them, how to copy files/directories to and from these hosts and/or containers and also how to terminate a specific host/container.
 
 The machine you run the pegasus-docker-deploy script (referred in this document as **local machine**) has Docker installed as well as each host on EC2. This mean that each machine has a different Docker Engine. Therefore, if you run the *docker ps* command, for example, on your machine and then run the same command on a EC2 host, you will get different outputs because the Docker Engines are different. Therefore, you need to know how to send commands to a specific Docker Engine. TO do so, you need to set your environment to that specific Docker Engine.
 
@@ -146,6 +148,7 @@ Then you are set to start sending Docker commands to that Docker Engine. If you 
 Also, if you want to send Docker commands to the swarm nodes or to the key-value store, you should use one of the commands below:
 
     eval $(docker-machine env pegasus-worker1)
+
     eval $(docker-machine env pegasus-keystore)
 
 Finally, if you want to undo the changes in your enviroment in order to communicate with the Docker Machine installed on your local machine, you can use that command with the option *-u* and without any hostname:
@@ -155,8 +158,6 @@ Finally, if you want to undo the changes in your enviroment in order to communic
 Then, if you run the *docker-machine ls* command, you should see that all values for the *active* column are dashes, meaning that you are pointing to the Docker Engine installed on your local machine.
 
 You can find more information about the *docker-machine env* command in this [link] (https://docs.docker.com/machine/reference/env/)
-
-**IF YOU HAVE ISSUE REGARDING THE DOCKER API VERSION CHECK THE TROUBLESHOOTING SECTION**
 
 #### Logging Into a Amazon EC2 Host
 
@@ -176,13 +177,17 @@ Hostname is the name of one amazon EC2 host available, started by the pegasus-do
 
     docker-machine ssh pegasus-worker1
 
-Once you are logged into the host, you can run docker commands directly to the Docker Engine installed on that host. However, to do so, you need to have root permission. Therefore, **you also should start your commands with the word "sudo", otherwise will get the following message: "Cannot connect to the Docker daemon. Is the docker daemon running on this host?"**.
+Once you are logged into the host, you can run docker commands directly to the Docker Engine installed on that host. However, to do so, you need to have root permission. Therefore, **you also should start your docker commands with the word "sudo", otherwise will get the following message: "Cannot connect to the Docker daemon. Is the docker daemon running on this host?"**.
+
+Note that the username of the amazon hosts are "ubuntu" by default. You can specify a different username for your amazon EC2 hosts on the amazon configuration file. For example, if you your username to be "myUsername" you should add the following line to your amazon configuration file:
+
+    AWS_SSH_USER=myUsername
 
 You can end your session on that host by running the *exit* command.
 
 #### Listing the Running Containers on a Amazon EC2 host
 
-If you wanto to check which docker containers are running on a amazon EC2 host, you need first to **set your environment to the Docker Engine installed on that host,** as explained above, and then you need to run the following command:
+If you want to check which docker containers are running on a amazon EC2 host, you need first to **set your environment to the Docker Engine installed on that host**, as explained above, and then you need to run the following command:
 
     docker ps
 
@@ -203,9 +208,61 @@ For example, if you want to log into the submit container running on the top of 
 
 **If you do not set your environment before running the *docker exec* command, you will get a message saying that there is no container named submit ?????????????**.
 
-#### Copying Files From Local Machine to Amazon EC2 Host
+You can also **log into the submit container as root by adding the option "-u 0"** as follows:
 
-You can use the *docker-machine scp* command to do it.
+    eval $(docker-machine --swarm pegasus-submit-node)
+    docker exec -it -u 0 submit bash
+
+Note that the default username for the pegasus docker containers is "tutorial". If you need to run commands as root, the password for this username is "pegasus123".
+
+#### Copying Files and Directories From/To Local Machine To/From Amazon EC2 Host
+
+If you want to either copy files/directories from your local machine to a amazon EC2 host or copy files from a EC2 host to your local machine, you can use the *docker-machine scp* command:
+
+    docker-machine scp [source] [destination]
+
+*source* is the path to the file/directory you want to copy and *destination* is the path where the file/directory should be placed. Paths within a **amazon EC2 host** must start with the name of the host followed by a colon (:). For example, if you want to transfer a file/directory named "input" located on your local machine's home directory to the home directory of a EC2 host named pegasus-submit-node, you should run the following command:
+
+    docker-machine scp ~/input pegasus-submit-node:~/input
+
+Or if you want to copy a file/directory named "output" from the home directory of a amazon EC2 host named pegasus-submit-node to your home directory, you should run this command:
+
+    docker-machine scp pegasus-submit-node:~/output ~/output
+
+#### Copying Files or Directories From/To Amazon EC2 host To/From Pegasus' Docker Containers
+
+If you want to either copy file/directories from your a Amazon EC2 host to the Pegasus Docker Container which is running on it, or copy files from a Pegasus Docker Container and the Amazon EC2 host on which the container is running, you can run the *docker cp* command **from the host as root**:
+
+    sudo docker cp [source] [destination]
+
+*source* is the path to the file/directory you want to copy and *destination* is the path where the file/directory should be placed. Path within a **container** must start with the name of the container followed by a colon (:). **Note that you need to log into the host before running this command.** For example, if you want to transfer a file named "input" located on the home directory of a amazon EC2 host named pegasus-submit-node to the home directory of a pegasus' docker container named submit running on top of that host, you should run the following commands from your local machine: 
+
+    docker-machine ssh pegasus-submit-node
+    sudo docker cp ~/input submit:~/input
+
+Or, if you want to copy a file/directory named "output" from the home directory of a pegasus' docker container named submit to the home directory of the amazon EC2 host, on which the container is running, named pegasus-submit-node, you should run the following commands from your local machine:
+
+    docker-machine ssh pegasus-submit-node
+    sudo docker cp submit:~/output ~/output
+
+#### Copying Files or Directories From/To Your Local Machine to Pegasus Docker Containers
+
+There is no direct way of accomplishing this. In order to do this, you first need to transfer the file from your local machine to the EC2 host and then transfer it from the host to the containeir. Or first transfer the file from the container to the EC2 host and then from the host to your local machine. Therefore, you need to combine the two type of transfers explained above.
+
+#### Terminating an Amazon EC2 Host
+
+In order to terminate an amazon EC2 host and all the containers running on it, you can run the following command from your local machine:
+
+    docker-machine rm -f [hostname]
+
+*hostname* is the name of the host you want to terminate.
+
+For example, if you want to terminate the EC2 host named pegasus-submit-node and all containers running on it, you can run the following cmmando from your local machine:
+
+    docker-machine rm -f pegasus-submit-node
+
+
+
 
 ## key-value store and overlay network
 ## docker-machine
