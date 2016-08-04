@@ -44,13 +44,13 @@ docker run -d -p "8500:8500" -h "consul" progrium/consul -server -bootstrap
 # 2 - create swarm cluster
 
 # create swarm master host
-echo '----------Launching swarm manager host (pegasus-submit-node)'
+echo "----------Launching swarm manager host (pegasus-submit-node)"
 docker-machine create -d amazonec2 --swarm --swarm-master --swarm-discovery="consul://$(docker-machine ip pegasus-keystore):8500" --engine-opt="cluster-store=consul://$(docker-machine ip pegasus-keystore):8500" --engine-opt="cluster-advertise=eth0:2376" pegasus-submit-node
 
 # create swarm workers hosts
 i=1
 while [ $i -le $NODES ]; do
-    echo '—————Launching swarm worker$i host (pegasus-worker$i)'
+    echo "—————Launching swarm worker$i host (pegasus-worker$i)"
     docker-machine create -d amazonec2 --swarm --swarm-discovery="consul://$(docker-machine ip pegasus-keystore):8500" --engine-opt="cluster-store=consul://$(docker-machine ip pegasus-keystore):8500" --engine-opt="cluster-advertise=eth0:2376" pegasus-worker$i
     let i=i+1
 done
