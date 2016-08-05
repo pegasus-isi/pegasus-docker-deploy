@@ -13,7 +13,7 @@ Pegasus docker deploy is a tool to create a docker Swarm cluster running Pegasus
 
 You can run the pegasus-docker-deploy.sh provinding three arguments. For example:
 
-    ./pegasus-docker-deploy.sh aws_config buildPegasusImage.sh 2 
+    ./pegasus-docker-deploy aws_config buildPegasusImage.sh 2 
 
 
 This command will start fours hosts on EC2 and run a specific Docker container on each one. The first EC2 host will be called pegasus-keystore and it will run a key-value store Consul container. The second will be called pegasus-submit-node and it will run a pegasus submit Docker container named submit. The last two hosts will be called pegasus-worker1 and pegasus-worker2. Pegasus-worker1 will run one pegasus worker Docker container called worker1 and pegasus-worker2 will run another pegasus worker Docker container called worker2.
@@ -55,11 +55,11 @@ In this section you will find basic information about how to submit workflows to
 In order to submit workflows to Pegasus, you must first log into the submit container and then submit your workflow. We provide a script for you to log into it. The script is called *login.sh* and it can be found in this repository. 
 In order to log in as root, you should run the script with the string **root** as argument. For example:
 
-    ./login.sh root
+    ./pegasus-docker-login root
 
 If you want to log in as a user, you do not need to provide any argument. For example:
 
-    ./login.sh
+    ./pegasus-docker-login
 
 You can find details about logging into a different container or into a amazon EC2 host in the "Advanced Usage of The Cluster" section below.
 
@@ -67,13 +67,13 @@ You can find details about logging into a different container or into a amazon E
 
 In many cases, in order to submit workflows to Pegasus, you will need to transfer files from your local machine to the submit container. You can use the script called *upload.sh* located in this repository to do that:
 
-    ./upload.sh [source] [destination]
+    ./pegasus-docker-upload [source] [destination]
 
 Where source is the path for the file/directory in your local machine and destination is the path to the location which the file/directory should be place within the container. The first argument is required and the second is optional. If you do not provide the destination argument, your file/directory will be placed in the home directory (/home/tutorial/). If you do want to provide a destination argument, you should specify the whole path. The tilde mark (~) will not stand for the home directory for that container. You must type /home/tutorial/ as the home directory of the container. **Note that your file/directory will be renamed to "transferredFiles" in the container.** 
 
 For example, if you want to transfer a file called "inputs" located in your local machine whitin your home directory to a directory called "myFiles" located in the container's home directory, you should do:
 
-    ./upload ~/inputs /home/tutorial/myFiles/
+    ./pegasus-docker-upload ~/inputs /home/tutorial/myFiles/
 
 This command will create a file or a directory in the myFiles directory, which will contain the file or directory that you transferred.
 
@@ -81,13 +81,13 @@ This command will create a file or a directory in the myFiles directory, which w
 
 In other cases you will need to copy files from the submit container to your machine, such as the workflow's output files. We also provide a script for you to do that. It is called *download.sh* and its usage is:
 
-    ./download.sh [source] [destination]
+    ./pegasus-docker-download [source] [destination]
 
 Where *source* is now a path within the container for the file/directory you want to transfer and *destination* is a path whitin your local machine where you want to place the transferred files. The first argument is required and the second is optional. If you do not provide the destination argument, your file/directory will be placed in your local machine's current directory. For the source destination you must provide the full path and the tilde mark (~) will not stand for the container's home directory. You must type /home/tutorial/ as the home directory of the container. **Note that your file/directory will be renamed to "transferredFiles" in your local machine.** 
 
 For example, if you want to transfer a file called "outputs" located in the submit container home directory to a directory called "myFiles" located in your local machine's home directory, you should do:
 
-    ./download /home/tutorial/outputs ~/myFiles/
+    ./pegasus-docker-download /home/tutorial/outputs ~/myFiles/
 
 You can find details about copying from/to a different container or from/to a amazon EC2 host in the section "Advanced Usage of The Cluster" below.
 
@@ -95,13 +95,13 @@ You can find details about copying from/to a different container or from/to a am
 
 After you are done running workflows using the swarm cluster, you can terminate your amazon EC2 instances. You can do it by running the script *pegasus-docker-deploy-terminate.sh* as follows:
 
-    ./pegasus-docker-deploy-terminate.sh [number_of_worker_nodes]
+    ./pegasus-docker-terminate [number_of_worker_nodes]
 
 *number_of_worker_nodes* is a required argument and it must be the same integer that you provided when you started your cluster using the pegasus-docker-deploy script. It means the number of **worker** hosts running in your cluster (it does not include neither pegasus-keystore nor pegasus-submit-node).
 
 For example:
 
-    ./pegasus-docker-deploy-terminate.sh 2
+    ./pegasus-docker-terminate 2
 
 You can find details about how to terminate a specific amazon EC2 host and all containers running on it in the "Advanced Usage of The Cluster" section below.
 
@@ -334,27 +334,27 @@ Below are the general commands to run to scripts that are provided in this repos
 
 #### Cluster creation
 
-    ./pegasus-docker-deploy.sh [path_to_aws_configuration_file] [path_to_pegasus_docker_builder_file] [number_of_worker_nodes]
+    ./pegasus-docker-deploy [path_to_aws_configuration_file] [path_to_pegasus_docker_builder_file] [number_of_worker_nodes]
 
 #### Log into Pegasus submit container as root
 
-    ./login.sh root
+    ./pegasus-docker-login root
 
 #### Log into Pegasus submit container as user
 
-    ./login.sh
+    ./pegasus-docker-login
 
 #### Copying file or directory from your local machine to Pegasus submit container
 
-    ./upload.sh [source] [destination]
+    ./pegasus-docker-upload [source] [destination]
 
 #### Copying file or directory from Pegasus submit container to your local machine
 
-    ./download.sh [source] [destination]
+    ./pegasus-docker-download [source] [destination]
 
 #### Cluster termination
 
-    ./pegasus-docker-deploy-terminate.sh [number_of_worker_nodes]
+    ./pegasus-docker-terminate [number_of_worker_nodes]
 
 ### Docker Machine Related
 
