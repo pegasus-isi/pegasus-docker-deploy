@@ -1,39 +1,80 @@
 #!/bin/bash
 
-AMAZON_FILE_PATH=$1
-BUILD_PEGASUS_FILE_PATH=$2
-NODES=$3
+while [[ $# -gt 1 ]]
+do
+  key="$1"
 
-if [ $# -le 2 ]
-then
-    echo "Error: Usage must be ./pegasus-docker-deploy.sh [path_to_aws_configuration_file] [path_to_pegasus_docker_builder_file] [number_of_worker_nodes]"
+  case $key in
+    -d|--driver)
+    DRIVER="$2"
+    shift
+    ;;
+    -n|--nodes)
+    NODES="$2"
+    shift
+    ;;
+    -b|--build-image)
+    BUILD_PEGASUS_FILE_PATH="$2"
+    ;;
+    -c|--conf)
+    CONFIG_FILE="$2"
+    ;;
+  esac
+  shift
+done
+
+# setting default values
+if [ -z ${DRIVER+x} ]; then
+  DRIVER=virtualbox
+else
+  if [[ ! $DRIVER =~ virtualbox|amazonec2 ]]; then
+    echo "Error: Invalid driver: $DRIVER"
     exit 1
+  fi
 fi
 
-# read the amazon ec2 configurations from a file and assign enviroment variables
-# the amazon configuration file's path must be the first argument of this script
-while read line; do
-    echo export $line
-    export $line
-done < $AMAZON_FILE_PATH
+# number of nodes
+if [ -z ${NODES+x} ]; then
+  NODES=1
+fi
+
+# pegasus build file
+if [ -z ${BUILD_PEGASUS_FILE_PATH+x} ]; then
+  BUILD_PEGASUS_FILE_PATH=buildPegasusImage.sh
+fi
+
+# config file
+if [ -z ${CONFIG_FILE+x} ]; then
+  CONFIG_FILE=pegasus-docker.conf
+fi
+
+# read configurations (e.g., amazon ec2) from the config file and assign
+# enviroment variables
+if [ -f $CONFIG_FILE ]; then
+  while read line; do
+      echo export $line
+      export $line
+  done < $CONFIG_FILE
+fi
 
 #1 - create key-value store
 echo "—————Launching pegasus-keystore host"
-docker-machine create -d amazonec2 pegasus-keystore
+docker-machine create -d $DRIVER pegasus-keystore
 
-# Open the required ports:
-# 8500 will be used by the key-value store
-# 7946 (TCP and UDP) and 4789 will be used by the overlay network
-# 9618 will be used by Condor
-DOCKER_SG_ID="$(aws ec2 describe-security-groups | grep -A 3 "docker-machine" | grep "GroupId" | sed -n 's/"GroupId": "\(.*\)\"/\1/gp' | sed -n 's/ //gp')"
-echo "docker-machine security group id: $DOCKER_SG_ID"
-echo "Opening required ports"
-aws ec2 authorize-security-group-ingress --group-id $DOCKER_SG_ID --protocol tcp --port 8500 --cidr 0.0.0.0/0
-aws ec2 authorize-security-group-ingress --group-id $DOCKER_SG_ID --protocol tcp --port 7946 --cidr 0.0.0.0/0
-aws ec2 authorize-security-group-ingress --group-id $DOCKER_SG_ID --protocol tcp --port 9618 --cidr 0.0.0.0/0
-aws ec2 authorize-security-group-ingress --group-id $DOCKER_SG_ID --protocol udp --port 7946 --cidr 0.0.0.0/0
-aws ec2 authorize-security-group-ingress --group-id $DOCKER_SG_ID --protocol udp --port 4789 --cidr 0.0.0.0/0
-
+if [[ $DRIVER =~ amazonec2 ]]; then
+  # Open the required ports:
+  # 8500 will be used by the key-value store
+  # 7946 (TCP and UDP) and 4789 will be used by the overlay network
+  # 9618 will be used by Condor
+  DOCKER_SG_ID="$(aws ec2 describe-security-groups | grep -A 3 "docker-machine" | grep "GroupId" | sed -n 's/"GroupId": "\(.*\)\"/\1/gp' | sed -n 's/ //gp')"
+  echo "docker-machine security group id: $DOCKER_SG_ID"
+  echo "Opening required ports"
+  aws ec2 authorize-security-group-ingress --group-id $DOCKER_SG_ID --protocol tcp --port 8500 --cidr 0.0.0.0/0
+  aws ec2 authorize-security-group-ingress --group-id $DOCKER_SG_ID --protocol tcp --port 7946 --cidr 0.0.0.0/0
+  aws ec2 authorize-security-group-ingress --group-id $DOCKER_SG_ID --protocol tcp --port 9618 --cidr 0.0.0.0/0
+  aws ec2 authorize-security-group-ingress --group-id $DOCKER_SG_ID --protocol udp --port 7946 --cidr 0.0.0.0/0
+  aws ec2 authorize-security-group-ingress --group-id $DOCKER_SG_ID --protocol udp --port 4789 --cidr 0.0.0.0/0
+fi
 
 eval "$(docker-machine env pegasus-keystore)"
 
@@ -45,13 +86,22 @@ docker run -d -p "8500:8500" -h "consul" progrium/consul -server -bootstrap
 
 # create swarm master host
 echo "----------Launching swarm manager host (pegasus-submit-node)"
-docker-machine create -d amazonec2 --swarm --swarm-master --swarm-discovery="consul://$(docker-machine ip pegasus-keystore):8500" --engine-opt="cluster-store=consul://$(docker-machine ip pegasus-keystore):8500" --engine-opt="cluster-advertise=eth0:2376" pegasus-submit-node
+
+if [[ $DRIVER =~ virtualbox ]]; then
+  docker-machine create -d $DRIVER --swarm --swarm-master --swarm-discovery="consul://$(docker-machine ip pegasus-keystore):8500" --engine-opt="cluster-store=consul://$(docker-machine ip pegasus-keystore):8500" --engine-opt="cluster-advertise=eth1:2376" pegasus-submit-node
+else
+  docker-machine create -d $DRIVER --swarm --swarm-master --swarm-discovery="consul://$(docker-machine ip pegasus-keystore):8500" --engine-opt="cluster-store=consul://$(docker-machine ip pegasus-keystore):8500" --engine-opt="cluster-advertise=eth0:2376" pegasus-submit-node
+fi
 
 # create swarm workers hosts
 i=1
 while [ $i -le $NODES ]; do
     echo "—————Launching swarm worker$i host (pegasus-worker$i)"
-    docker-machine create -d amazonec2 --swarm --swarm-discovery="consul://$(docker-machine ip pegasus-keystore):8500" --engine-opt="cluster-store=consul://$(docker-machine ip pegasus-keystore):8500" --engine-opt="cluster-advertise=eth0:2376" pegasus-worker$i
+    if [[ $DRIVER =~ virtualbox ]]; then
+      docker-machine create -d $DRIVER --swarm --swarm-discovery="consul://$(docker-machine ip pegasus-keystore):8500" --engine-opt="cluster-store=consul://$(docker-machine ip pegasus-keystore):8500" --engine-opt="cluster-advertise=eth1:2376" pegasus-worker$i
+    else
+      docker-machine create -d $DRIVER --swarm --swarm-discovery="consul://$(docker-machine ip pegasus-keystore):8500" --engine-opt="cluster-store=consul://$(docker-machine ip pegasus-keystore):8500" --engine-opt="cluster-advertise=eth0:2376" pegasus-worker$i
+    fi
     let i=i+1
 done
 
@@ -59,45 +109,54 @@ done
 eval $(docker-machine env --swarm pegasus-submit-node)
 echo "—————Creating overlay network"
 
-docker network create --driver overlay --subnet=10.0.9.0/24 my-net
+docker network create --driver overlay --subnet=10.0.9.0/24 pegasus-net
 
 # 4 - Run application on swarms hosts using the overlay network
 
 # copy the dockerfiles to the swarm master host
 echo "—————Transferring Dockerfiles to swarm hosts"
-docker-machine scp $BUILD_PEGASUS_FILE_PATH pegasus-submit-node:/home/ubuntu/build.sh
+
+if [[ $DRIVER =~ virtualbox ]]; then
+  docker-machine scp $BUILD_PEGASUS_FILE_PATH pegasus-submit-node:/home/docker/build.sh
+else
+  docker-machine scp $BUILD_PEGASUS_FILE_PATH pegasus-submit-node:/home/ubuntu/build.sh
+fi
 
 i=1
 while [ $i -le $NODES ]; do
     echo "Copying Dockerfile to pegasus-worker$i"
-    docker-machine scp $BUILD_PEGASUS_FILE_PATH pegasus-worker$i:/home/ubuntu/build.sh
+    if [[ $DRIVER =~ virtualbox ]]; then
+      docker-machine scp $BUILD_PEGASUS_FILE_PATH pegasus-worker$i:/home/docker/build.sh
+    else
+      docker-machine scp $BUILD_PEGASUS_FILE_PATH pegasus-worker$i:/home/ubuntu/build.sh
+    fi
     let i=i+1
 done
 
 # create pegasus docker images.
 echo "—————Building pegasus:submit image on pegasus-submit-node host"
 docker-machine ssh pegasus-submit-node chmod a+x build.sh
-docker-machine ssh pegasus-submit-node ./build.sh
+docker-machine ssh pegasus-submit-node sh build.sh
 
 echo "—————Building pegasus:worker image on workers hosts"
 i=1
 while [ $i -le $NODES ]; do
     echo "—————Building pegasus:worker image on worker$i host"
     docker-machine ssh pegasus-worker$i chmod a+x build.sh
-    docker-machine ssh pegasus-worker$i ./build.sh worker
+    docker-machine ssh pegasus-worker$i sh build.sh worker
     let i=i+1
 done
 
 # run condor head container on submit host
 eval $(docker-machine env --swarm pegasus-submit-node)
 echo "—————Running pegasus submit container on pegasus-submit-node host"
-docker run -itd -h submit --name=submit --net=my-net -e constraint:node==pegasus-submit-node pegasus:submit
+docker run -itd -h submit --name=submit --net=pegasus-net -e constraint:node==pegasus-submit-node pegasus:submit
 
 # run condor worker container workers hosts
 i=1
 while [ $i -le $NODES ]; do
     echo "----------Running pegasus worker container on pegasus-worker$i host"
-    docker run -itd -h worker$i --name=worker$i --net=my-net -e constraint:node==pegasus-worker$i pegasus:worker
+    docker run -itd -h worker$i --name=worker$i --net=pegasus-net -e constraint:node==pegasus-worker$i pegasus:worker
     let i=i+1
 done
 

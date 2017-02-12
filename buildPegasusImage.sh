@@ -54,12 +54,6 @@ RUN chmod -R g+w /var/{lib,log,lock,run}/condor
 # Get Pegasus yum repo
 RUN curl -o /etc/yum.repos.d/pegasus.repo http://download.pegasus.isi.edu/wms/download/rhel/6/pegasus.repo
 RUN yum -y install pegasus
-#RUN yum -y install graphviz
-#RUN rpm -ivh http://download.pegasus.isi.edu/pegasus/4.5.0/pegasus-4.5.0-1.el6.x86_64.rpm 
-
-#RUN cp -rf  /usr/share/doc/pegasus/tutorial/* /home/tutorial/
-#RUN chmod +x /home/tutorial/{generate_dax.py,plan_dax.sh} /home/tutorial/bin/*
-#ADD pegasus/doc/tutorial/examples /home/tutorial/examples
 
 RUN chown -R tutorial /home/tutorial/
 
