@@ -34,7 +34,7 @@ RUN echo -e "ulimit -f 900000" >> /etc/bashrc
 
 # Get Condor yum repo
 RUN curl -o /etc/yum.repos.d/condor.repo http://research.cs.wisc.edu/htcondor/yum/repo.d/htcondor-stable-rhel7.repo
-RUN yum -y install --enablerepo=centosplus condor
+RUN yum -y install --nogpgcheck --enablerepo=centosplus condor
 RUN echo -e "TRUST_UID_DOMAIN = True\n" >> /etc/condor/condor_config.local
 RUN echo -e "ALLOW_WRITE = *\n" >> /etc/condor/condor_config.local
 EOT
