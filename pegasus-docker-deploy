@@ -144,15 +144,18 @@ echo -ne "\n"
 
 # create swarm workers hosts
 i=1
+echo "$PREFIX Launching swarm pegasus-worker hosts"
 while [ $i -le $NODES ]; do
-    echo "$PREFIX Launching swarm worker$i host (pegasus-worker$i)"
-    echo -ne "$PREFIX   ..."
+    echo "$PREFIX   pegasus-worker$i"
     validate "Unable to launch swam worker$i host" \
-      docker-machine create -d $DRIVER --swarm --swarm-discovery="consul://$(docker-machine ip pegasus-keystore):8500" --engine-opt="cluster-store=consul://$(docker-machine ip pegasus-keystore):8500" --engine-opt="cluster-advertise=$ETHERNET:2376" pegasus-worker$i
-    echo -ne "\r$PREFIX   Completed"
-    echo -ne "\n"
+      docker-machine create -d $DRIVER --swarm --swarm-discovery="consul://$(docker-machine ip pegasus-keystore):8500" --engine-opt="cluster-store=consul://$(docker-machine ip pegasus-keystore):8500" --engine-opt="cluster-advertise=$ETHERNET:2376" pegasus-worker$i &
     let i=i+1
 done
+
+echo -ne "$PREFIX   ..."
+wait
+echo -ne "\r$PREFIX   Completed"
+echo -ne "\n"
 
 # 3 - create the overlay network
 eval $(docker-machine env --swarm pegasus-submit-node)
@@ -212,16 +215,18 @@ echo -ne "\n"
 
 # run condor worker container workers hosts
 i=1
+echo "$PREFIX Launching pegasus worker containers on worker hosts"
 while [ $i -le $NODES ]; do
-    echo "$PREFIX Launching pegasus worker container on pegasus-worker$i host"
-    echo -ne "$PREFIX   ..."
+    echo "$PREFIX   pegasus-worker$i"
     validate "Unable to start worker$i container" \
-      docker run -itd -h worker$i --name=worker$i --net=pegasus-net -e constraint:node==pegasus-worker$i pegasusdocker/deploy:worker-centos7
-    echo -ne "\r$PREFIX   Completed"
-    echo -ne "\n"
+      docker run -itd -h worker$i --name=worker$i --net=pegasus-net -e constraint:node==pegasus-worker$i pegasusdocker/deploy:worker-centos7 &
     let i=i+1
 done
 
+echo -ne "$PREFIX   ..."
+wait
+echo -ne "\r$PREFIX   Completed"
+echo -ne "\n"
 
 #open the submit container’s bash
 echo "$PREFIX Logging into the pegasus submit container (password: pegasus123)"
