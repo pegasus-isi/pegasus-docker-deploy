@@ -164,55 +164,61 @@ validate "Unable to create overlay network" \
 # 4 - Run application on swarms hosts using the overlay network
 
 # copy the dockerfiles to the swarm master host
-echo "$PREFIX Transferring Dockerfiles to swarm hosts"
-validate "Unable to transfer Docker files to master host" \
-  docker-machine scp $BUILD_PEGASUS_FILE_PATH pegasus-submit-node:$HOME_DIR/build.sh
-
-
-i=1
-while [ $i -le $NODES ]; do
-    echo "$PREFIX Copying Dockerfile to pegasus-worker$i"
-    validate "Unable to transfer Docker files to worker$i" \
-      docker-machine scp $BUILD_PEGASUS_FILE_PATH pegasus-worker$i:$HOME_DIR/build.sh
-    let i=i+1
-done
+# echo "$PREFIX Transferring Dockerfiles to swarm hosts"
+# validate "Unable to transfer Docker files to master host" \
+#   docker-machine scp $BUILD_PEGASUS_FILE_PATH pegasus-submit-node:$HOME_DIR/build.sh
+#
+#
+# i=1
+# while [ $i -le $NODES ]; do
+#     echo "$PREFIX Copying Dockerfile to pegasus-worker$i"
+#     validate "Unable to transfer Docker files to worker$i" \
+#       docker-machine scp $BUILD_PEGASUS_FILE_PATH pegasus-worker$i:$HOME_DIR/build.sh
+#     let i=i+1
+# done
 
 # create pegasus docker images.
-echo "$PREFIX Building pegasus:submit image on pegasus-submit-node host"
-echo -ne "$PREFIX   ..."
-validate "Unable to set execution permission to Docker file on pegasus-submit-node host" \
-  docker-machine ssh pegasus-submit-node chmod a+x build.sh
-validate "Unable to build Docker instance on pegasus-submit-node host" \
-  docker-machine ssh pegasus-submit-node sh build.sh
-echo -ne "\r$PREFIX   Completed"
-echo -ne "\n"
-
-echo "$PREFIX Building pegasus:worker image on workers hosts"
-i=1
-while [ $i -le $NODES ]; do
-    echo "$PREFIX   Building pegasus:worker image on pegasus-worker$i host"
-    echo -ne "$PREFIX   ..."
-    validate "Unable to set execution permission to Docker file on pegasus-worker$i host" \
-      docker-machine ssh pegasus-worker$i chmod a+x build.sh
-    validate "Unable to build Docker instance on pegasus-worker$i host" \
-      docker-machine ssh pegasus-worker$i sh build.sh worker
-    echo -ne "\r$PREFIX   Completed"
-    echo -ne "\n"
-    let i=i+1
-done
+# echo "$PREFIX Building pegasus:submit image on pegasus-submit-node host"
+# echo -ne "$PREFIX   ..."
+# validate "Unable to set execution permission to Docker file on pegasus-submit-node host" \
+#   docker-machine ssh pegasus-submit-node chmod a+x build.sh
+# validate "Unable to build Docker instance on pegasus-submit-node host" \
+#   docker-machine ssh pegasus-submit-node sh build.sh
+# echo -ne "\r$PREFIX   Completed"
+# echo -ne "\n"
+#
+# echo "$PREFIX Building pegasus:worker image on workers hosts"
+# i=1
+# while [ $i -le $NODES ]; do
+#     echo "$PREFIX   Building pegasus:worker image on pegasus-worker$i host"
+#     echo -ne "$PREFIX   ..."
+#     validate "Unable to set execution permission to Docker file on pegasus-worker$i host" \
+#       docker-machine ssh pegasus-worker$i chmod a+x build.sh
+#     validate "Unable to build Docker instance on pegasus-worker$i host" \
+#       docker-machine ssh pegasus-worker$i sh build.sh worker
+#     echo -ne "\r$PREFIX   Completed"
+#     echo -ne "\n"
+#     let i=i+1
+# done
 
 # run condor head container on submit host
 eval $(docker-machine env --swarm pegasus-submit-node)
-echo "$PREFIX Running pegasus submit container on pegasus-submit-node host"
+echo "$PREFIX Launching pegasus submit container on pegasus-submit-node host"
+echo -ne "$PREFIX   ..."
 validate "Unable to start submit container" \
-  docker run -itd -h submit --name=submit --net=pegasus-net -e constraint:node==pegasus-submit-node pegasus:submit
+  docker run -itd -h submit --name=submit --net=pegasus-net -e constraint:node==pegasus-submit-node pegasusdocker/deploy:submit-centos7
+echo -ne "\r$PREFIX   Completed"
+echo -ne "\n"
 
 # run condor worker container workers hosts
 i=1
 while [ $i -le $NODES ]; do
-    echo "$PREFIX Running pegasus worker container on pegasus-worker$i host"
+    echo "$PREFIX Launching pegasus worker container on pegasus-worker$i host"
+    echo -ne "$PREFIX   ..."
     validate "Unable to start worker$i container" \
-      docker run -itd -h worker$i --name=worker$i --net=pegasus-net -e constraint:node==pegasus-worker$i pegasus:worker
+      docker run -itd -h worker$i --name=worker$i --net=pegasus-net -e constraint:node==pegasus-worker$i pegasusdocker/deploy:worker-centos7
+    echo -ne "\r$PREFIX   Completed"
+    echo -ne "\n"
     let i=i+1
 done
 
