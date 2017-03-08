@@ -13,10 +13,6 @@ do
     NODES="$2"
     shift
     ;;
-    -b|--build-image)
-    BUILD_PEGASUS_FILE_PATH="$2"
-    shift
-    ;;
     -c|--conf)
     CONFIG_FILE="$2"
     shift
@@ -25,8 +21,24 @@ do
     LOG_FILE="$2"
     shift
     ;;
+    -p|--project)
+    PROJECT="$2"
+    shift
+    ;;
+    -m|--machine)
+    MACHINE="$2"
+    shift
+    ;;
+    -r|--region)
+    REGION="$2"
+    shift
+    ;;
+    -z|--zone)
+    ZONE="$2"
+    shift
+    ;;
     -h|--help)
-    echo "Usage: `basename $0` [-d DRIVER] [-n NODES] [-b BUILD_IMAGE] [-c CONFIG_FILE]"
+    echo "Usage: `basename $0` [-d DRIVER] [-n NODES] [-c CONFIG_FILE] [-o OUTPUT_FILE] [-r REGION] [-z ZONE]"
     exit 0
     ;;
   esac
@@ -37,7 +49,7 @@ done
 if [ -z ${DRIVER+x} ]; then
   DRIVER=virtualbox
 else
-  if [[ ! $DRIVER =~ virtualbox|amazonec2 ]]; then
+  if [[ ! $DRIVER =~ virtualbox|amazonec2|google ]]; then
     echo "Error: Invalid driver: $DRIVER"
     exit 1
   fi
@@ -46,11 +58,6 @@ fi
 # number of nodes
 if [ -z ${NODES+x} ]; then
   NODES=1
-fi
-
-# pegasus build file
-if [ -z ${BUILD_PEGASUS_FILE_PATH+x} ]; then
-  BUILD_PEGASUS_FILE_PATH=buildPegasusImage.sh
 fi
 
 # config file
@@ -63,10 +70,34 @@ if [ -z ${LOG_FILE+x} ]; then
   LOG_FILE=pegasus-docker.log
 fi
 
+# project name
+if [ -z ${PROJECT+x} ]; then
+  PROJECT=default
+fi
+
+# machine type
+if [ -z ${MACHINE+x} ]; then
+  if [[ $DRIVER =~ google ]]; then
+    MACHINE=n1-standard-1
+  elif [[ $DRIVER =~ amazonec2 ]]; then
+    ZONE=a
+  fi
+fi
+
+# zone / region
+if [ -z ${ZONE+x} ]; then
+  if [[ $DRIVER =~ google ]]; then
+    ZONE=us-central1-a
+  elif [[ $DRIVER =~ amazonec2 ]]; then
+    ZONE=m1.small
+  fi
+fi
+
+
 PREFIX=[pegasus-docker-deploy]
 
-# read configurations (e.g., amazon ec2) from the config file and assign
-# enviroment variables
+# read configurations (e.g., amazon ec2, google) from the config file and
+# assign enviroment variables
 if [ -f $CONFIG_FILE ]; then
   while read line; do
       echo export $line
@@ -88,39 +119,88 @@ function validate {
     return $status
 }
 
+# check if machine is up and Running
+function exist {
+    "docker-machine" status $1 >> $LOG_FILE 2>&1
+    local status=$?
+    if [ $status == 0 ]; then
+        local output=$(docker-machine ls --filter driver=$DRIVER --filter name=$1 --filter state=Running --format "{{.Error}}")
+        if [ -z $output ]; then
+            return 0
+        fi
+        echo "$PREFIX $1 machine exists but is not properly configured." >> $LOG_FILE 2>&1
+        echo "$PREFIX Removing $1..." >> $LOG_FILE 2>&1
+        validate "Unable to remove $1 machine" \
+          docker-machine rm $1 -y
+        return 1
+    fi
+    return $status
+}
+
+echo "----------------------------------"
 echo "Initializing pegasus-docker-deploy"
+echo "----------------------------------"
 echo "$PREFIX Log File: $LOG_FILE"
 echo "$PREFIX Driver: $DRIVER"
 echo "$PREFIX"
 
+# Defining additional flags for 'docker-machine create' command
+DOCKER_MACHINE_CREATE_FLAGS=""
+
+if [[ $DRIVER =~ google ]]; then
+   DOCKER_MACHINE_CREATE_FLAGS="--google-machine-type $MACHINE --google-tags swarm-cluster --google-project $PROJECT --google-zone $ZONE"
+fi
+
+
+# Open the required ports:
+# 8500 will be used by the key-value store
+# 7946 (TCP and UDP) and 4789 will be used by the overlay network
+# 9618 will be used by Condor
+if [[ $DRIVER =~ amazonec2 ]]; then
+  DOCKER_SG_ID="$(aws ec2 describe-security-groups | grep -A 3 "docker-machine" | grep "GroupId" | sed -n 's/"GroupId": "\(.*\)\"/\1/gp' | sed -n 's/ //gp')"
+  echo "$PREFIX docker-machine security group id: $DOCKER_SG_ID"
+  echo "$PREFIX Opening required ports"
+  echo -ne "$PREFIX   ..."
+  for port in 8500 7946 9618 4789; do
+    validate "AWS EC2: Unable to open required port: $port" \
+      aws ec2 authorize-security-group-ingress --group-id $DOCKER_SG_ID --protocol tcp --port $port --cidr 0.0.0.0/0
+  done
+  echo -ne "\r$PREFIX   Completed"
+  echo -ne "\n"
+
+elif [[ $DRIVER =~ google ]]; then
+  echo "$PREFIX Opening required ports"
+  echo -ne "$PREFIX   ..."
+  for port in 8500 7946 9618 4789; do
+    echo "Test if ports are already open exists" >> $LOG_FILE 2>&1
+    gcloud compute firewall-rules describe pegasus-swarm-$port >> $LOG_FILE 2>&1
+    status=$?
+    if [ $status -ne 0 ]; then
+      validate "Google: Unable to open required port: $port" \
+        gcloud compute firewall-rules create pegasus-swarm-$port --allow tcp:$port --target-tags swarm-cluster
+    fi
+  done
+  echo -ne "\r$PREFIX   Completed"
+  echo -ne "\n"
+fi
 
 #1 - create key-value store
 echo "$PREFIX Launching pegasus-keystore host"
 echo -ne "$PREFIX   ..."
-validate "Unable to launch pegasus-keystore host" \
-  docker-machine create -d $DRIVER pegasus-keystore
+if exist pegasus-keystore; then
+    eval "$(docker-machine env pegasus-keystore)"
+    echo "$PREFIX pegasus-keystore already created and running" >> $LOG_FILE
+else
+    validate "Unable to launch pegasus-keystore host" \
+      docker-machine create pegasus-keystore -d $DRIVER $DOCKER_MACHINE_CREATE_FLAGS
+
+    echo "$PREFIX Running consul container over pegasus-keystore host"
+    eval "$(docker-machine env pegasus-keystore)"
+    validate "Unable to start consul" \
+      docker run -d -p "8500:8500" -h "consul" progrium/consul -server -bootstrap
+fi
 echo -ne "\r$PREFIX   Completed"
 echo -ne "\n"
-
-if [[ $DRIVER =~ amazonec2 ]]; then
-  # Open the required ports:
-  # 8500 will be used by the key-value store
-  # 7946 (TCP and UDP) and 4789 will be used by the overlay network
-  # 9618 will be used by Condor
-  DOCKER_SG_ID="$(aws ec2 describe-security-groups | grep -A 3 "docker-machine" | grep "GroupId" | sed -n 's/"GroupId": "\(.*\)\"/\1/gp' | sed -n 's/ //gp')"
-  echo "$PREFIX docker-machine security group id: $DOCKER_SG_ID"
-  echo "$PREFIX Opening required ports"
-  for port in 8500 7946 9618 7946 4789; do
-    validate "AWS EC2: Unable to open required port: $port" \
-      aws ec2 authorize-security-group-ingress --group-id $DOCKER_SG_ID --protocol tcp --port $port --cidr 0.0.0.0/0
-  done
-fi
-
-eval "$(docker-machine env pegasus-keystore)"
-
-echo "$PREFIX Running consul container over pegasus-keystore host"
-validate "Unable to start consul" \
-  docker run -d -p "8500:8500" -h "consul" progrium/consul -server -bootstrap
 
 
 # 2 - create swarm cluster
@@ -132,23 +212,37 @@ HOME_DIR=/home/ubuntu
 if [[ $DRIVER =~ virtualbox ]]; then
   ETHERNET=eth1
   HOME_DIR=/home/docker
+elif [[ $DRIVER =~ google ]]; then
+  ETHERNET=ens4
 fi
+
 
 # create swarm master host
 echo "$PREFIX Launching swarm manager host (pegasus-submit-node)"
 echo -ne "$PREFIX   ..."
-validate "Unable to launch swarm manager host" \
-  docker-machine create -d $DRIVER --swarm --swarm-master --swarm-discovery="consul://$(docker-machine ip pegasus-keystore):8500" --engine-opt="cluster-store=consul://$(docker-machine ip pegasus-keystore):8500" --engine-opt="cluster-advertise=$ETHERNET:2376" pegasus-submit-node
+if exist pegasus-submit-node; then
+    eval "$(docker-machine env pegasus-keystore)"
+    echo "$PREFIX pegasus-keystore already created and running" >> $LOG_FILE
+else
+    validate "Unable to launch swarm manager host" \
+      docker-machine create pegasus-submit-node -d $DRIVER --swarm --swarm-master --swarm-discovery="consul://$(docker-machine ip pegasus-keystore):8500" --engine-opt="cluster-store=consul://$(docker-machine ip pegasus-keystore):8500" --engine-opt="cluster-advertise=$ETHERNET:2376" $DOCKER_MACHINE_CREATE_FLAGS
+fi
 echo -ne "\r$PREFIX   Completed"
 echo -ne "\n"
+
 
 # create swarm workers hosts
 i=1
 echo "$PREFIX Launching swarm pegasus-worker hosts"
 while [ $i -le $NODES ]; do
     echo "$PREFIX   pegasus-worker$i"
-    validate "Unable to launch swam worker$i host" \
-      docker-machine create -d $DRIVER --swarm --swarm-discovery="consul://$(docker-machine ip pegasus-keystore):8500" --engine-opt="cluster-store=consul://$(docker-machine ip pegasus-keystore):8500" --engine-opt="cluster-advertise=$ETHERNET:2376" pegasus-worker$i &
+    if exist pegasus-worker$i; then
+        eval "$(docker-machine env pegasus-keystore)"
+        echo "$PREFIX pegasus-worker$i already created and running" >> $LOG_FILE
+    else
+        validate "Unable to launch swam worker$i host" \
+          docker-machine create pegasus-worker$i -d $DRIVER --swarm --swarm-discovery="consul://$(docker-machine ip pegasus-keystore):8500" --engine-opt="cluster-store=consul://$(docker-machine ip pegasus-keystore):8500" --engine-opt="cluster-advertise=$ETHERNET:2376" $DOCKER_MACHINE_CREATE_FLAGS &
+    fi
     let i=i+1
 done
 
@@ -157,52 +251,13 @@ wait
 echo -ne "\r$PREFIX   Completed"
 echo -ne "\n"
 
+
 # 3 - create the overlay network
 eval $(docker-machine env --swarm pegasus-submit-node)
 echo "$PREFIX Creating overlay network"
 validate "Unable to create overlay network" \
   docker network create --driver overlay --subnet=10.0.9.0/24 pegasus-net
 
-
-# 4 - Run application on swarms hosts using the overlay network
-
-# copy the dockerfiles to the swarm master host
-# echo "$PREFIX Transferring Dockerfiles to swarm hosts"
-# validate "Unable to transfer Docker files to master host" \
-#   docker-machine scp $BUILD_PEGASUS_FILE_PATH pegasus-submit-node:$HOME_DIR/build.sh
-#
-#
-# i=1
-# while [ $i -le $NODES ]; do
-#     echo "$PREFIX Copying Dockerfile to pegasus-worker$i"
-#     validate "Unable to transfer Docker files to worker$i" \
-#       docker-machine scp $BUILD_PEGASUS_FILE_PATH pegasus-worker$i:$HOME_DIR/build.sh
-#     let i=i+1
-# done
-
-# create pegasus docker images.
-# echo "$PREFIX Building pegasus:submit image on pegasus-submit-node host"
-# echo -ne "$PREFIX   ..."
-# validate "Unable to set execution permission to Docker file on pegasus-submit-node host" \
-#   docker-machine ssh pegasus-submit-node chmod a+x build.sh
-# validate "Unable to build Docker instance on pegasus-submit-node host" \
-#   docker-machine ssh pegasus-submit-node sh build.sh
-# echo -ne "\r$PREFIX   Completed"
-# echo -ne "\n"
-#
-# echo "$PREFIX Building pegasus:worker image on workers hosts"
-# i=1
-# while [ $i -le $NODES ]; do
-#     echo "$PREFIX   Building pegasus:worker image on pegasus-worker$i host"
-#     echo -ne "$PREFIX   ..."
-#     validate "Unable to set execution permission to Docker file on pegasus-worker$i host" \
-#       docker-machine ssh pegasus-worker$i chmod a+x build.sh
-#     validate "Unable to build Docker instance on pegasus-worker$i host" \
-#       docker-machine ssh pegasus-worker$i sh build.sh worker
-#     echo -ne "\r$PREFIX   Completed"
-#     echo -ne "\n"
-#     let i=i+1
-# done
 
 # run condor head container on submit host
 eval $(docker-machine env --swarm pegasus-submit-node)
@@ -212,6 +267,7 @@ validate "Unable to start submit container" \
   docker run -itd -h submit --name=submit --net=pegasus-net -e constraint:node==pegasus-submit-node pegasusdocker/deploy:submit-centos7
 echo -ne "\r$PREFIX   Completed"
 echo -ne "\n"
+
 
 # run condor worker container workers hosts
 i=1
@@ -228,6 +284,12 @@ wait
 echo -ne "\r$PREFIX   Completed"
 echo -ne "\n"
 
+
 #open the submit container’s bash
+echo "$PREFIX"
 echo "$PREFIX Logging into the pegasus submit container (password: pegasus123)"
+echo "--------------------------------"
+echo "Completed pegasus-docker-deploy"
+echo "--------------------------------"
+
 docker exec -it submit bash
