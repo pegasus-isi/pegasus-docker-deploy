@@ -1,16 +1,12 @@
 #!/bin/bash
 
-NODES=$1
-
-if [ $# -eq 0 ]
+echo "WARNING: This action will delete both local reference and remote instances."
+read -r -p "Are you sure? [y/N] " response
+if [[ "$response" =~ ^([yY][eE][sS]|[yY])+$ ]]
 then
-    echo "Usage: ./pegasus-docker-deploy-terminate.sh [number of WORKER nodes]"
-else
-    docker-machine rm -f pegasus-keystore pegasus-submit-node
-
-    i=1
-    while [ $i -le $NODES ]; do
-        docker-machine rm -f pegasus-worker$i
-        let i=i+1
-    done
+    # obtain list of machines
+    machine_names=$(docker-machine ls --format "{{.Name}}")
+    while read -r machine; do
+        docker-machine rm $machine -y
+    done <<< $machine_names
 fi
