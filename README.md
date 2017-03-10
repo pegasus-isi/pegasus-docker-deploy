@@ -1,12 +1,26 @@
-# pegasus-docker-deploy
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-Pegasus docker deploy is a tool to create a docker Swarm cluster running Pegasus Docker containers on the Amazon Elastic Compute Cloud (EC2) . It starts a given number of EC2 hosts, installs Docker, configures Swarm and run one docker container which has Pegasus installed on each host. This way, you can use Pegasus to run workflows using docker containers running on top of hosts located on the Amazon cloud service.
+# Deploying Pegasus infrastructure with Docker Swarm
 
-## Requirements
+`pegasus-docker-deploy` is a tool to create a Docker Swarm cluster scheduling and running Pegasus Docker containers. Currently, the tools provides support to the following systems:
 
-  * [Docker] (https://www.docker.com)
-  * [Docker Machine] (https://docs.docker.com/machine/)
-  * [Docker Swarm] (https://docs.docker.com/swarm/)
+* VirtualBox
+* Amazon Elastic Compute Cloud (EC2)
+* Google Cloud Platform
+
+In a nutshell, the tool starts a given number of virtual machine (VM) hosts, installs Docker, configures Swarm, and run one docker container which has Pegasus installed on each host.
+
+## Minimum Requirements
+
+* [Docker] (https://www.docker.com)
+* [Docker Machine] (https://docs.docker.com/machine/)
+* [Docker Swarm] (https://docs.docker.com/swarm/)
+
+
+
+--
+__The text below is still under revision__
+
   * [AWS Command Line Interface] (http://docs.aws.amazon.com/cli/latest/userguide/cli-chap-getting-set-up.html). Make sure to [install] (http://docs.aws.amazon.com/cli/latest/userguide/installing.html) and [configure] (http://docs.aws.amazon.com/cli/latest/userguide/cli-chap-getting-started.html) the aws CLI. Your access key id and secret access key must be configured in order to AWS CLI work correctly.
 
 ## Creating a swarm cluster
