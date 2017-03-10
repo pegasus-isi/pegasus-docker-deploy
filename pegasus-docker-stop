@@ -1,0 +1,45 @@
+#!/bin/bash
+
+while [[ $# -gt 0 ]]
+do
+  key="$1"
+
+  case $key in
+    -t|--terminate)
+    TERMINATE=true
+    shift
+    ;;
+    -h|--help)
+    echo "Usage: `basename $0` [-t]"
+    exit 0
+    ;;
+  esac
+  shift
+done
+
+# number of nodes
+if [ -z ${TERMINATE+x} ]; then
+  TERMINATE=false
+fi
+
+if $TERMINATE; then
+  echo "WARNING: This action will delete both local reference and remote instances."
+  read -r -p "Are you sure? [y/N] " response
+  if [[ "$response" =~ ^([yY][eE][sS]|[yY])+$ ]]
+  then
+      # obtain list of machines
+      machine_names=$(docker-machine ls --format "{{.Name}}")
+      while read -r machine; do
+          docker-machine rm $machine -y &
+      done <<< $machine_names
+      wait
+  fi
+
+else
+  # only stop the machines
+  machine_names=$(docker-machine ls --format "{{.Name}}")
+  while read -r machine; do
+      docker-machine stop $machine &
+  done <<< $machine_names
+  wait
+fi

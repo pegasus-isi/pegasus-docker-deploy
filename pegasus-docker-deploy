@@ -194,7 +194,7 @@ else
     validate "Unable to launch pegasus-keystore host" \
       docker-machine create pegasus-keystore -d $DRIVER $DOCKER_MACHINE_CREATE_FLAGS
 
-    echo "$PREFIX Running consul container over pegasus-keystore host"
+    # running consul container over pegasus-keystore host
     eval "$(docker-machine env pegasus-keystore)"
     validate "Unable to start consul" \
       docker run -d -p "8500:8500" -h "consul" progrium/consul -server -bootstrap
