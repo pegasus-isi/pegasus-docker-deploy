@@ -33,6 +33,14 @@ In a nutshell, the tool starts a given number of virtual machine (VM) hosts, ins
 - `-t` or `--terminate`: Terminate all running or stopped instances
 
 
+## Running Pegasus containers with VirtualBox
+
+By default, the `pegasus-docker-deploy` command creates a Docker Swarm cluster in VirtualBox. It uses the [boot2docker](http://boot2docker.io/) lightweight Linux distribution as the guest OS, and deploys Pegasus Docker containers in the VMs. The following example command creates a cluster with five worker (compute) nodes:
+
+```
+./pegasus-docker-deploy -d virtualbox -n 5
+```
+
 --
 __The text below is still under revision__
 
