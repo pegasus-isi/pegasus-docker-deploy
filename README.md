@@ -10,12 +10,27 @@
 
 In a nutshell, the tool starts a given number of virtual machine (VM) hosts, installs Docker, configures Swarm, and run one docker container which has Pegasus installed on each host.
 
-## Minimum Requirements
+
+## Minimum requirements
 
 * [Docker] (https://www.docker.com)
 * [Docker Machine] (https://docs.docker.com/machine/)
 * [Docker Swarm] (https://docs.docker.com/swarm/)
 
+
+## Overview of commands and general options
+
+**`pegasus-docker-deploy`**: Creates a Docker swarm cluster running Pegasus Docker containers. Default behavior creates a Docker Swarm cluster in VirtualBox with a single worker (compute) node.
+
+- `-d` or `--driver`: Driver to create machine with: virtualbox, amazonec2, google (default: _virtualbox_)
+- `-n` or `--nodes`: Number of worker nodes (default: 1)
+- `-c` or `--conf`: Configuration file: environment variables to that will be automatically exported. (default: _pegasus-docker.conf_)
+- `-o` or `--output`: Output log file (default: _pegasus-docker.log_)
+- `-h` or `--help`: Help menu
+
+**`pegasus-docker-stop`**: Stops or terminates all instances from a Docker cluster. Default behavior stops all running instances.
+
+- `-t` or `--terminate`: Terminate all running or stopped instances
 
 
 --
