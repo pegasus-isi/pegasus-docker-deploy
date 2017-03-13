@@ -11,14 +11,14 @@
 In a nutshell, the tool starts a given number of virtual machine (VM) hosts, installs Docker, configures Swarm, and run one docker container which has Pegasus installed on each host.
 
 
-## Minimum requirements
+### Minimum requirements
 
 * [Docker] (https://www.docker.com)
 * [Docker Machine] (https://docs.docker.com/machine/)
 * [Docker Swarm] (https://docs.docker.com/swarm/)
 
 
-## Overview of commands and general options
+### Overview of commands and general options
 
 **`pegasus-docker-deploy`**: Creates a Docker swarm cluster running Pegasus Docker containers. Default behavior creates a Docker Swarm cluster in VirtualBox with a single worker (compute) node.
 
@@ -41,10 +41,39 @@ By default, the `pegasus-docker-deploy` command creates a Docker Swarm cluster i
 ./pegasus-docker-deploy -d virtualbox -n 5
 ```
 
---
+
+## Running Pegasus containers with AmazonEC2
+
+### Additional requirements
+
+* [AWS Command Line Interface] (http://docs.aws.amazon.com/cli/latest/userguide/cli-chap-getting-set-up.html). Make sure to [install] (http://docs.aws.amazon.com/cli/latest/userguide/installing.html) and [configure] (http://docs.aws.amazon.com/cli/latest/userguide/cli-chap-getting-started.html) the aws CLI. Your access key id and secret access key must be configured in order to AWS CLI work correctly.
+
+### Additional command line options
+
+- `-m` or `--machine`: Amazon EC2 instance type (default: _t2.micro_)
+- `-r` or `--region`: The region to use when launching the instance (default: _us-east-1_)
+- `-z` or `--zone`: The AWS zone to launch the instance in (default: _a_)
+
+```
+./pegasus-docker-deploy -d amazonec2 -n 5 -m t2.micro -r us-east-1 -z a
+```
+
+## Running Pegasus containers with Google Cloud Platform
+
+- `-p` or `--project`: The id of your project to use when launching the instance (**required**)
+- `-m` or `--machine`: Google instance type (default: _n1-standard-1_)
+- `-z` or `--zone`: The Google zone to launch the instance in (default: _us-central1-a_)
+
+```
+./pegasus-docker-deploy -d google -n 5 -p myproject -m n1-standard-1 -z us-central1-a
+```
+
+----
+
+
+
 __The text below is still under revision__
 
-  * [AWS Command Line Interface] (http://docs.aws.amazon.com/cli/latest/userguide/cli-chap-getting-set-up.html). Make sure to [install] (http://docs.aws.amazon.com/cli/latest/userguide/installing.html) and [configure] (http://docs.aws.amazon.com/cli/latest/userguide/cli-chap-getting-started.html) the aws CLI. Your access key id and secret access key must be configured in order to AWS CLI work correctly.
 
 ## Creating a swarm cluster
 
