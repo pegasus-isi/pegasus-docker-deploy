@@ -98,16 +98,23 @@ if [ -z ${MACHINE+x} ]; then
   if [[ $DRIVER =~ google ]]; then
     MACHINE=n1-standard-1
   elif [[ $DRIVER =~ amazonec2 ]]; then
-    ZONE=a
+    MACHINE=t2.micro
   fi
 fi
 
-# zone / region
+# zone
 if [ -z ${ZONE+x} ]; then
   if [[ $DRIVER =~ google ]]; then
     ZONE=us-central1-a
   elif [[ $DRIVER =~ amazonec2 ]]; then
-    ZONE=m1.small
+    ZONE=a
+  fi
+fi
+
+# region
+if [ -z ${REGION+x} ]; then
+  if [[ $DRIVER =~ amazonec2 ]]; then
+    REGION=us-east-1
   fi
 fi
 
@@ -167,6 +174,8 @@ DOCKER_MACHINE_CREATE_FLAGS=""
 
 if [[ $DRIVER =~ google ]]; then
    DOCKER_MACHINE_CREATE_FLAGS="--google-machine-type $MACHINE --google-tags swarm-cluster --google-project $PROJECT --google-zone $ZONE"
+elif [[ $DRIVER =~ amazonec2 ]]; then
+   DOCKER_MACHINE_CREATE_FLAGS="--amazonec2-instance-type $MACHINE ---amazonec2-tags swarm-cluster --amazonec2-region $REGION --amazonec2-zone $ZONE"
 fi
 
 
