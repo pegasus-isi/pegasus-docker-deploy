@@ -15,19 +15,19 @@ This tool will start two required hosts and a number of worker (compute) nodes a
 
 ### Minimum requirements
 
-* [Docker] (https://www.docker.com)
-* [Docker Machine] (https://docs.docker.com/machine/)
-* [Docker Swarm] (https://docs.docker.com/swarm/)
+* [Docker](https://www.docker.com)
+* [Docker Machine](https://docs.docker.com/machine/)
+* [Docker Swarm](https://docs.docker.com/swarm/)
 
 
 ### Overview of commands and general options
 
 **`pegasus-docker-deploy`**: Creates a Docker swarm cluster running Pegasus Docker containers. Default behavior creates a Docker Swarm cluster in VirtualBox with a single worker (compute) node.
 
-- `-d` or `--driver`: Driver to create machine with: virtualbox, amazonec2, google (default: _virtualbox_)
-- `-n` or `--nodes`: Number of worker nodes (default: 1)
-- `-c` or `--conf`: Configuration file: environment variables to that will be automatically exported. (default: _pegasus-docker.conf_)
-- `-o` or `--output`: Output log file (default: _pegasus-docker.log_)
+- `-d <DRIVER>` or `--driver <DRIVER>`: Driver to create machine with: virtualbox, amazonec2, google (default: _virtualbox_)
+- `-n <NUM_NODES>` or `--nodes <NUM_NODES>`: Number of worker nodes (default: 1)
+- `-c <CONF_FILE>` or `--conf <CONF_FILE>`: Configuration file: environment variables to that will be automatically exported. (default: _pegasus-docker.conf_)
+- `-o <LOG_FILE>` or `--output <LOG_FILE>`: Output log file (default: _pegasus-docker.log_)
 - `-h` or `--help`: Help menu
 
 **`pegasus-docker-stop`**: Stops or terminates all instances from a Docker cluster. Default behavior stops all running instances.
@@ -48,15 +48,15 @@ By default, the `pegasus-docker-deploy` command creates a Docker Swarm cluster i
 
 ### Additional requirements
 
-* [AWS Command Line Interface] (http://docs.aws.amazon.com/cli/latest/userguide/cli-chap-getting-set-up.html). Make sure to [install] (http://docs.aws.amazon.com/cli/latest/userguide/installing.html) and [configure] (http://docs.aws.amazon.com/cli/latest/userguide/cli-chap-getting-started.html) the aws CLI. Your access key id and secret access key must be configured in order to AWS CLI work correctly.
+* [AWS Command Line Interface](http://docs.aws.amazon.com/cli/latest/userguide/cli-chap-getting-set-up.html). Make sure to [install](http://docs.aws.amazon.com/cli/latest/userguide/installing.html) and [configure](http://docs.aws.amazon.com/cli/latest/userguide/cli-chap-getting-started.html) the aws CLI. Your access key id and secret access key must be configured in order to AWS CLI work correctly.
 
 ### Additional command line options
 
-- `-m` or `--machine`: Amazon EC2 instance type (default: _t2.micro_)
-- `-r` or `--region`: The region to use when launching the instance (default: _us-east-1_)
-- `-z` or `--zone`: The AWS zone to launch the instance in (default: _a_)
+- `-m <INSTANCE_TYPE>` or `--machine <INSTANCE_TYPE>`: Amazon EC2 instance type (default: _t2.micro_)
+- `-r <REGION>` or `--region <REGION>`: The region to use when launching the instance (default: _us-east-1_)
+- `-z <ZONE>` or `--zone <ZONE>`: The AWS zone to launch the instance in (default: _a_)
 
-The example below deploys 
+The example below deploys five worker nodes of type _t2.micro_ on the _us-east-1-a_ zone/region:
 ```
 ./pegasus-docker-deploy -d amazonec2 -n 5 -m t2.micro -r us-east-1 -z a
 ```
@@ -86,9 +86,24 @@ An example file is provided in this repository. Note that you must replace the a
 
 ## Running Pegasus containers with Google Cloud Platform
 
-- `-p` or `--project`: The id of your project to use when launching the instance (**required**)
-- `-m` or `--machine`: Google instance type (default: _n1-standard-1_)
-- `-z` or `--zone`: The Google zone to launch the instance in (default: _us-central1-a_)
+### Additional requirements
+
+- [Google Cloud SDK](http://cloud.google.com/sdk). Make sure to install and configure the `gcloud` client, and then [create a project](http://console.cloud.google.com/project). The **project ID** will be required to perform the deploy operation. You will also need to [**enable the Google Compute Engine API**](https://console.cloud.google.com/apis/api/compute-component.googleapis.com/overview).
+
+Before running any Docker command for Google Compute Engine, you will need go through the oauth2 process:
+```
+gcloud auth login
+```
+
+### Additional command line options
+
+- `-p <PROJECT_ID>` or `--project <PROJECT_ID>`: The id of your project to use when launching the instance (**required**)
+- `-m <INSTANCE_TYPE>` or `--machine <INSTANCE_TYPE>`: Google instance type (default: _n1-standard-1_)
+- `-z <ZONE>` or `--zone <ZONE>`: The Google zone to launch the instance in (default: _us-central1-a_)
+
+The only required option is the `-p <PROJECT_ID>` or `--project <PROJECT_ID>`. Note that the project ID can also be set using an environment variable (`GOOGLE_PROJECT`) defined in the configuration file (e.g., `pegasus-docker.conf`). A complete list of the Google Computer Egine enviroment variables and their default values can be found on this [link](https://docs.docker.com/machine/drivers/gce/).
+
+The example below deploys five worker nodes of type _n1-standard-1_ on the _us-central1-a_ zone for project _myproject_:
 
 ```
 ./pegasus-docker-deploy -d google -n 5 -p myproject -m n1-standard-1 -z us-central1-a
