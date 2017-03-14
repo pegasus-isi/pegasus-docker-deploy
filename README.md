@@ -10,6 +10,8 @@
 
 In a nutshell, the tool starts a given number of virtual machine (VM) hosts, installs Docker, configures Swarm, and run one docker container which has Pegasus installed on each host.
 
+This tool will start two required hosts and a number of worker (compute) nodes as specified by the user. The required hosts are: (1) the `pegasus-keystore`, which runs a key-value store [Consul](https://hub.docker.com/r/progrium/consul/) container; and (2) the `pegasus-submit-node`, which runs a Pegasus submit Docker container. 
+
 
 ### Minimum requirements
 
@@ -54,9 +56,33 @@ By default, the `pegasus-docker-deploy` command creates a Docker Swarm cluster i
 - `-r` or `--region`: The region to use when launching the instance (default: _us-east-1_)
 - `-z` or `--zone`: The AWS zone to launch the instance in (default: _a_)
 
+The example below deploys 
 ```
 ./pegasus-docker-deploy -d amazonec2 -n 5 -m t2.micro -r us-east-1 -z a
 ```
+
+### AWS configuration file
+
+The configuration file (default: `pegasus-docker.conf`) is used by the `pegasus-docker-deploy` script to access your amazon EC2 account to start the hosts. **Every single host created on the AWS (key-value store, swarm manager, and swarm workers) will have the configuration provided in this file.** It is a text file which must be formatted according to the following rules:
+
+- Each line of the file must be as follows:
+```
+AWS_ENVIROMENT_VARIABLE=AWS_VALUE
+```
+
+- This file requires, at least, four AWS enviroment variables: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION`, `AWS_VPC_ID`. Note that if you do not have a _vpc_ on your AWS account, you must create one using the [AWS web interface](https://console.aws.amazon.com).
+
+One example of the aws configuration file would be:
+```
+AWS_ACCESS_KEY_ID=HUA62J283LAMSN8273JH
+AWS_SECRET_ACCESS_KEY=AbAhu8BnHA6hl+lakoehB7H654NnhuLkoP98mNH6
+AWS_DEFAULT_REGION=us-west-2
+AWS_VPC_ID=vpc-dapa44sx
+```
+    
+An example file is provided in this repository. Note that you must replace the aws access key id and the aws secret access key with your keys (those keys are not valid and they are used just as an example). Some other useful AWS environment variables include `AWS_AMI`, `AWS_INSTANCE_TYPE`, and `AWS_SSH_USER`. A complete list of the AWS enviroment variables and their default values can be found on this [link](https://docs.docker.com/machine/drivers/aws/) under "Environment variables" column of the table within the Options section.
+
+
 
 ## Running Pegasus containers with Google Cloud Platform
 
@@ -75,35 +101,8 @@ By default, the `pegasus-docker-deploy` command creates a Docker Swarm cluster i
 __The text below is still under revision__
 
 
-## Creating a swarm cluster
-
-You can run the pegasus-docker-deploy.sh provinding three arguments. For example:
-
-    ./pegasus-docker-deploy aws_config buildPegasusImage.sh 2 
 
 
-This command will start fours hosts on EC2 and run a specific Docker container on each one. The first EC2 host will be called pegasus-keystore and it will run a key-value store Consul container. The second will be called pegasus-submit-node and it will run a pegasus submit Docker container named submit. The last two hosts will be called pegasus-worker1 and pegasus-worker2. Pegasus-worker1 will run one pegasus worker Docker container called worker1 and pegasus-worker2 will run another pegasus worker Docker container called worker2.
-
-The first argument for the script must be the path of a configuration file with your AWS credentials and EC2 host machines preferences. The *aws_config* file on this repository is a example of this kind of file. The second one must be the path of the Pegasus docker image builder which is used to generate the Dockerfile and build a Docker image from it. The *buildPegasusImage.sh* file can be found in this repository. The last argument is an integer representing the number of **worker** hosts you would like to start.
-
-## AWS configuration file
-
-This configuration file is used by the pegasus-docker-deploy script to access your amazon EC2 account to start the hosts. **Every single host create on the AWS (key-value store, swarm manager and swarm workers) will have the configuration provided in this file.** It is a text file which must be formatted according to the following rules:
-
-Each line of the file must be as follows:
-
-    AWS_ENVIROMENT_VARIABLE=AWS_VALUE
-
-This file requires, at least, four AWS enviroment variables: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_DEFAULT_REGION, AWS_VPC_ID. Note that if you do not have a vpc on your AWS account you must create one using the AWS web interface.
-
-One example of the aws configuration file would be:
-
-    AWS_ACCESS_KEY_ID=HUA62J283LAMSN8273JH
-    AWS_SECRET_ACCESS_KEY=AbAhu8BnHA6hl+lakoehB7H654NnhuLkoP98mNH6
-    AWS_DEFAULT_REGION=us-west-2
-    AWS_VPC_ID=vpc-dapa44sx
-
-This file can be found on this repository, named *aws_config*. Note that you must replace the aws access key id and the aws secret access key for your keys. Those keys are not valid and they are used just as a example. Some other useful aws environment variables are AWS_AMI, AWS_INSTANCE_TYPE and AWS_SSH_USER. A full list of the aws enviroment variables and their default values can be found on this [link] (https://docs.docker.com/machine/drivers/aws/) under "Environment variables" column of the table within the Options section.
 
 
 ## Pegasus' docker image builder file
