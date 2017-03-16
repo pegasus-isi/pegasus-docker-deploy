@@ -123,12 +123,19 @@ PREFIX=[pegasus-docker-deploy]
 
 # read configurations (e.g., amazon ec2, google) from the config file and
 # assign enviroment variables
-if [ -f $CONFIG_FILE ]; then
-  while read line; do
-      echo export $line
-      export $line
-  done < $CONFIG_FILE
+if [[ ! $DRIVER =~ virtualbox ]]; then
+  if [ -f $CONFIG_FILE ]; then
+    while read line; do
+        echo export $line
+        export $line
+      done < $CONFIG_FILE
+  fi
 fi
+
+
+#########################
+# Functions             #
+#########################
 
 # check command's exit code
 # first argument should be the error message
@@ -149,24 +156,49 @@ function exist {
     "docker-machine" status $1 >> $LOG_FILE 2>&1
     local status=$?
     if [ $status == 0 ]; then
-        local output=$(docker-machine ls --filter driver=$DRIVER --filter name=$1 --filter state=Running --format "{{.Error}}")
-        if [ -z $output ]; then
-            return 0
+        read state error <<< $(docker-machine ls --filter driver=$DRIVER --filter name=$1 --format "{{.State}} {{.Error}}")
+        if [ -z $error ]; then
+            if [ "$state" == "Running" ]; then
+                return 0
+            elif [ "$state" == "Stopped" ]; then
+                # start stopped machine and container
+                echo "$PREFIX Starting $1" >> $LOG_FILE 2>&1
+                docker-machine start $1 >> $LOG_FILE 2>&1
+                return 0
+            fi
         fi
-        echo "$PREFIX $1 machine exists but is not properly configured." >> $LOG_FILE 2>&1
+        echo "$PREFIX $1 machine exists but is not properly configured" >> $LOG_FILE 2>&1
         echo "$PREFIX Removing $1..." >> $LOG_FILE 2>&1
         validate "Unable to remove $1 machine" \
-          docker-machine rm $1 -y
+            docker-machine rm $1 -y
         return 1
     fi
     return $status
 }
+
+# check if container is up and Running
+function exist_container {
+    read names_run <<< $(docker ps --filter name=$1 --filter status=running --format "{{.Names}}")
+    if [ -z "${names_run// }" ]; then
+        read names_exit <<< $(docker ps --filter name=$1 --filter status=exited --format "{{.Names}}")
+        if [ -z "${names_exit// }" ]; then
+            return 1
+        fi
+        echo "$PREFIX Starting container: $1" >> $LOG_FILE 2>&1
+        docker start $1 >> $LOG_FILE 2>&1
+        return 0
+    fi
+    echo "$PREFIX Container '$1' is already running" >> $LOG_FILE 2>&1
+    return 0
+}
+
 
 echo "----------------------------------"
 echo "Initializing pegasus-docker-deploy"
 echo "----------------------------------"
 echo "$PREFIX Log File: $LOG_FILE"
 echo "$PREFIX Driver: $DRIVER"
+echo "$PREFIX Number of Worker Nodes: $NODES"
 echo "$PREFIX"
 
 # Defining additional flags for 'docker-machine create' command
@@ -211,12 +243,15 @@ elif [[ $DRIVER =~ google ]]; then
   echo -ne "\n"
 fi
 
+
 #1 - create key-value store
 echo "$PREFIX Launching pegasus-keystore host"
 echo -ne "$PREFIX   ..."
 if exist pegasus-keystore; then
     eval "$(docker-machine env pegasus-keystore)"
-    echo "$PREFIX pegasus-keystore already created and running" >> $LOG_FILE
+    # check if container is running
+    exist_container consul
+    echo "$PREFIX pegasus-keystore was already created and it is now running" >> $LOG_FILE
 else
     validate "Unable to launch pegasus-keystore host" \
       docker-machine create pegasus-keystore -d $DRIVER $DOCKER_MACHINE_CREATE_FLAGS
@@ -224,7 +259,7 @@ else
     # running consul container over pegasus-keystore host
     eval "$(docker-machine env pegasus-keystore)"
     validate "Unable to start consul" \
-      docker run -d -p "8500:8500" -h "consul" progrium/consul -server -bootstrap
+      docker run -d -p "8500:8500" -h "consul" --name=consul progrium/consul -server -bootstrap
 fi
 echo -ne "\r$PREFIX   Completed"
 echo -ne "\n"
@@ -248,8 +283,8 @@ fi
 echo "$PREFIX Launching swarm manager host (pegasus-submit-node)"
 echo -ne "$PREFIX   ..."
 if exist pegasus-submit-node; then
-    eval "$(docker-machine env pegasus-keystore)"
-    echo "$PREFIX pegasus-keystore already created and running" >> $LOG_FILE
+    eval "$(docker-machine env --swarm pegasus-submit-node)"
+    echo "$PREFIX pegasus-submit-node was already created and it is now running" >> $LOG_FILE
 else
     validate "Unable to launch swarm manager host" \
       docker-machine create pegasus-submit-node -d $DRIVER --swarm --swarm-master --swarm-discovery="consul://$(docker-machine ip pegasus-keystore):8500" --engine-opt="cluster-store=consul://$(docker-machine ip pegasus-keystore):8500" --engine-opt="cluster-advertise=$ETHERNET:2376" $DOCKER_MACHINE_CREATE_FLAGS
@@ -264,8 +299,8 @@ echo "$PREFIX Launching swarm pegasus-worker hosts"
 while [ $i -le $NODES ]; do
     echo "$PREFIX   pegasus-worker$i"
     if exist pegasus-worker$i; then
-        eval "$(docker-machine env pegasus-keystore)"
-        echo "$PREFIX pegasus-worker$i already created and running" >> $LOG_FILE
+        eval "$(docker-machine env pegasus-worker$i)"
+        echo "$PREFIX pegasus-worker$i was already created and it is now running" >> $LOG_FILE
     else
         validate "Unable to launch swam worker$i host" \
           docker-machine create pegasus-worker$i -d $DRIVER --swarm --swarm-discovery="consul://$(docker-machine ip pegasus-keystore):8500" --engine-opt="cluster-store=consul://$(docker-machine ip pegasus-keystore):8500" --engine-opt="cluster-advertise=$ETHERNET:2376" $DOCKER_MACHINE_CREATE_FLAGS &
@@ -282,16 +317,23 @@ echo -ne "\n"
 # 3 - create the overlay network
 eval $(docker-machine env --swarm pegasus-submit-node)
 echo "$PREFIX Creating overlay network"
-validate "Unable to create overlay network" \
-  docker network create --driver overlay --subnet=10.0.9.0/24 pegasus-net
+read overlay_network <<< $(docker network ls --filter name=pegasus-net --format "{{.Name}}")
+if [ "$overlay_network" == "pegasus-net" ]; then
+    echo "$PREFIX Overlay network was already created" >> $LOG_FILE
+else
+    validate "Unable to create overlay network" \
+      docker network create --driver overlay --subnet=10.0.9.0/24 pegasus-net
+fi
 
 
 # run condor head container on submit host
 eval $(docker-machine env --swarm pegasus-submit-node)
 echo "$PREFIX Launching pegasus submit container on pegasus-submit-node host"
 echo -ne "$PREFIX   ..."
-validate "Unable to start submit container" \
-  docker run -itd -h submit --name=submit --net=pegasus-net -e constraint:node==pegasus-submit-node pegasusdocker/deploy:submit-centos7
+if ! exist_container submit; then
+  validate "Unable to start submit container" \
+    docker run -itd -h submit --name=submit --net=pegasus-net -e constraint:node==pegasus-submit-node pegasusdocker/deploy:submit-centos7
+fi
 echo -ne "\r$PREFIX   Completed"
 echo -ne "\n"
 
@@ -301,11 +343,12 @@ i=1
 echo "$PREFIX Launching pegasus worker containers on worker hosts"
 while [ $i -le $NODES ]; do
     echo "$PREFIX   pegasus-worker$i"
-    validate "Unable to start worker$i container" \
-      docker run -itd -h worker$i --name=worker$i --net=pegasus-net -e constraint:node==pegasus-worker$i pegasusdocker/deploy:worker-centos7 &
+    if ! exist_container worker$i; then
+      validate "Unable to start pegasus-worker$i container" \
+        docker run -itd -h worker$i --name=worker$i --net=pegasus-net -e constraint:node==pegasus-worker$i pegasusdocker/deploy:worker-centos7 &
+    fi
     let i=i+1
 done
-
 echo -ne "$PREFIX   ..."
 wait
 echo -ne "\r$PREFIX   Completed"

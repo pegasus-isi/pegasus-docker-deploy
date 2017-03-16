@@ -30,7 +30,7 @@ do
     shift
     ;;
     -h|--help)
-    echo "Usage: `basename $0` [-t]"
+    echo "Usage: `basename $0` [-t] [-n INSTANCE_NAME]"
     exit 0
     ;;
   esac
@@ -41,6 +41,7 @@ done
 if [ -z ${TERMINATE+x} ]; then
   TERMINATE=false
 fi
+
 
 if $TERMINATE; then
   echo "WARNING: This action will delete both local reference and remote instances."
