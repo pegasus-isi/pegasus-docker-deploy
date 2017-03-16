@@ -24,6 +24,9 @@ do
   case $key in
     -t|--terminate)
     TERMINATE=true
+    ;;
+    -n|--name)
+    NAME=$2
     shift
     ;;
     -h|--help)
@@ -44,19 +47,38 @@ if $TERMINATE; then
   read -r -p "Are you sure? [y/N] " response
   if [[ "$response" =~ ^([yY][eE][sS]|[yY])+$ ]]
   then
+    if [ -z ${NAME+x} ]; then
       # obtain list of machines
       machine_names=$(docker-machine ls --format "{{.Name}}")
       while read -r machine; do
-          docker-machine rm $machine -y &
+        docker-machine rm $machine -y &
       done <<< $machine_names
       wait
+
+    else
+      # remove only a specific machine
+      docker-machine rm $NAME -y
+    fi
   fi
 
 else
+  # saving changes to submit-node container
+  eval $(docker-machine env --swarm pegasus-submit-node)
+  container_id=$(docker ps --filter name=submit --format "{{.ID}}")
+  if [ ! -z $container_id ]; then
+      docker commit $container_id pegasusdocker/deploy:submit-centos7
+  fi
+
   # only stop the machines
-  machine_names=$(docker-machine ls --format "{{.Name}}")
-  while read -r machine; do
+  if [ -z ${NAME+x} ]; then
+    machine_names=$(docker-machine ls --format "{{.Name}}")
+    while read -r machine; do
       docker-machine stop $machine &
-  done <<< $machine_names
-  wait
+    done <<< $machine_names
+    wait
+
+  else
+    # only stop a specific machine
+    docker-machine stop $NAME
+  fi
 fi
