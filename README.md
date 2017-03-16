@@ -33,6 +33,7 @@ This tool will start two required hosts and a number of worker (compute) nodes a
 **`pegasus-docker-stop`**: Stops or terminates all instances from a Docker cluster. Default behavior stops all running instances.
 
 - `-t` or `--terminate`: Terminate all running or stopped instances
+- `-n <INSTANCE_NAME>` or `--name <INSTANCE_NAME>`: Stop/Terminate a specific instance
 
 
 ## Running Pegasus containers with VirtualBox
