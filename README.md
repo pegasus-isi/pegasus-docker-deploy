@@ -28,6 +28,7 @@ This tool will start two required hosts and a number of worker (compute) nodes a
 - `-n <NUM_NODES>` or `--nodes <NUM_NODES>`: Number of worker nodes (default: 1)
 - `-c <CONF_FILE>` or `--conf <CONF_FILE>`: Configuration file: environment variables to that will be automatically exported. (default: _pegasus-docker.conf_)
 - `-o <LOG_FILE>` or `--output <LOG_FILE>`: Output log file (default: _pegasus-docker.log_)
+- `-i <SUBMIT_IMAGE>` or `--submit-image SUBMIT_IMAGE`: Docker image for submit node--can be customized with a pre-installed application or workflow (default: _pegasusdocker/deploy:submit-centos7_)
 - `-h` or `--help`: Help menu
 
 **`pegasus-docker-stop`**: Stops or terminates all instances from a Docker cluster. Default behavior stops all running instances.
