@@ -1,23 +1,80 @@
 #!/bin/bash
-
+#
+#  Copyright 2017 University Of Southern California
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#  http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing,
+#  software distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
+# author: Rafael Ferreira da Silva
+# author: Guilherme Gribeler
+#
 SOURCE=$1
 DEST=$2
 exit=0
 
-if [ $# -eq 0 ]
-then
-    echo "Usage: ./upload.sh [source] [destination]"
-    exit=1
-elif [ $# -eq 1 ]
-then
-    DEST=.
+if [ $# -eq 0 ]; then
+    echo "Usage: pegasus-docker-download SOURCE [DESTINATION]"
+    exit 1
 fi
 
-if [ $exit -eq 0 ]
-then
-    eval $(docker-machine env --swarm pegasus-submit-node)
-    docker-machine ssh pegasus-submit-node mkdir scratch
-    docker-machine ssh pegasus-submit-node sudo docker cp submit:$SOURCE /home/ubuntu/scratch/transferredFiles
-    docker-machine scp -r pegasus-submit-node:/home/ubuntu/scratch/transferredFiles $DEST
-    docker-machine ssh pegasus-submit-node sudo rm -r scratch
+if [ $# -eq 1 ]; then
+    DEST=$(basename $SOURCE)
 fi
+
+PREFIX=[pegasus-docker-download]
+
+#########################
+# Functions             #
+#########################
+
+# check command's exit code
+# first argument should be the error message
+function validate {
+    local error_msg=$1
+    shift
+    "$@"
+    local status=$?
+    if [ $status -ne 0 ]; then
+        echo "Error: $error_msg" >&2
+        exit $status
+    fi
+    return $status
+}
+
+read driver <<< $(docker-machine ls --filter name=pegasus-submit-node --format "{{.DriverName}}")
+if [ -z "${driver// }" ]; then
+    echo "Error: unable to find 'pegasus-submit-node' instance."
+    exit 1
+fi
+
+eval $(docker-machine env --swarm pegasus-submit-node)
+
+# define home dir folder per driver type
+HOME_DIR=/home/ubuntu
+if [ "$driver" == "google" ]; then
+    HOME_DIR=/home/docker-user
+elif [ "$driver" == "virtualbox" ]; then
+    HOME_DIR=/home/docker
+fi
+
+echo "$PREFIX Downloading from submit node..."
+echo "$PREFIX   Source: $SOURCE"
+echo "$PREFIX   Destination: $DEST"
+validate "Unable to create temporary folder in pegasus-submit-node" \
+  docker-machine ssh pegasus-submit-node mkdir -p scratch
+validate "Unable to copy data from container into instance" \
+  docker-machine ssh pegasus-submit-node sudo docker cp submit:$SOURCE $HOME_DIR/scratch/transferredFiles
+validate "Unable to scp data from instance" \
+  docker-machine scp -r pegasus-submit-node:$HOME_DIR/scratch/transferredFiles $DEST
+validate "Unable to remove temporary folder in pegasus-submit-node" \
+  docker-machine ssh pegasus-submit-node sudo rm -rf scratch
+echo "$PREFIX   Completed!"

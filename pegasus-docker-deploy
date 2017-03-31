@@ -279,11 +279,9 @@ echo -ne "\n"
 
 # set driver-related variables
 ETHERNET=eth0
-HOME_DIR=/home/ubuntu
 
 if [[ $DRIVER =~ virtualbox ]]; then
   ETHERNET=eth1
-  HOME_DIR=/home/docker
 elif [[ $DRIVER =~ google ]]; then
   ETHERNET=ens4
 fi
