@@ -55,8 +55,12 @@ do
     ZONE="$2"
     shift
     ;;
+    -i|--submit-image)
+    SUBMIT_IMAGE="$2"
+    shift
+    ;;
     -h|--help)
-    echo "Usage: `basename $0` [-d DRIVER] [-n NODES] [-c CONFIG_FILE] [-o OUTPUT_FILE] [-r REGION] [-z ZONE]"
+    echo "Usage: `basename $0` [-d DRIVER] [-n NODES] [-c CONFIG_FILE] [-o OUTPUT_FILE] [-r REGION] [-z ZONE] [-i SUBMIT_IMAGE]"
     exit 0
     ;;
   esac
@@ -117,6 +121,12 @@ if [ -z ${REGION+x} ]; then
     REGION=us-east-1
   fi
 fi
+
+# submit image
+if [ -z ${SUBMIT_IMAGE+x} ]; then
+  SUBMIT_IMAGE=pegasusdocker/deploy:submit-centos7
+fi
+
 
 
 PREFIX=[pegasus-docker-deploy]
@@ -332,7 +342,7 @@ echo "$PREFIX Launching pegasus submit container on pegasus-submit-node host"
 echo -ne "$PREFIX   ..."
 if ! exist_container submit; then
   validate "Unable to start submit container" \
-    docker run -itd -h submit --name=submit --net=pegasus-net -e constraint:node==pegasus-submit-node pegasusdocker/deploy:submit-centos7
+    docker run -itd -h submit --name=submit --net=pegasus-net -e constraint:node==pegasus-submit-node $SUBMIT_IMAGE
 fi
 echo -ne "\r$PREFIX   Completed"
 echo -ne "\n"
