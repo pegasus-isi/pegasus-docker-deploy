@@ -52,7 +52,7 @@ if $TERMINATE; then
       # obtain list of machines
       machine_names=$(docker-machine ls --format "{{.Name}}")
       while read -r machine; do
-        docker-machine rm $machine -y &
+        docker-machine rm $machine --force &
       done <<< $machine_names
       wait
 
